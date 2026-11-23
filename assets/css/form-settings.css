@@ -1,0 +1,33 @@
+/* Form settings: compact, clear, consistent layout */
+.mjd-form-settings-page{position:relative;z-index:auto;background:transparent;color:#243b50;overflow:visible;padding:12px 16px;box-sizing:border-box;font-family:inherit}
+.mjd-form-settings-page .container-fluid{height:auto;min-height:0;max-width:100%;margin:0 auto;background:transparent;border:1px solid #d6e1ea;border-radius:12px;overflow:visible;display:flex;flex-direction:column;padding:0!important;box-shadow:none}
+.mjd-form-settings-page .container-fluid>div:first-child{background:linear-gradient(100deg,#087f91,#31546b);padding:12px 20px;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:12px 12px 0 0}
+.mjd-form-settings-page h2{font-size:21px;font-weight:700;margin:0;color:#fff}
+.mjd-form-settings-page .container-fluid>div:first-child a{background:#f1f5f8;color:#29465d;border-radius:7px;padding:8px 13px;text-decoration:none;font-weight:600}
+.mjd-form-settings-page form{background:#f8fafc!important;border:0!important;box-shadow:none!important;border-radius:0 0 12px!important;padding:18px 24px 84px!important;overflow:visible;flex:1}
+.mjd-form-settings-page form>div.mb-3{margin:0 0 18px!important;background:#edf3f7;padding:12px 15px;border:1px solid #d6e2ec;border-radius:8px}
+.mjd-form-settings-page label{display:block;color:#385671;font-size:14px;font-weight:650;margin-bottom:6px}
+.mjd-form-settings-page .form-control{width:100%;min-height:39px;padding:8px 11px;border:1px solid #cbd9e5;border-radius:7px;background:#fff;font-size:14px;color:#23384c;box-sizing:border-box;box-shadow:none}
+.mjd-form-settings-page .form-control:focus{border-color:#1593a5;box-shadow:0 0 0 3px rgba(21,147,165,.12)}
+.mjd-form-settings-page [data-tab]{border:1px solid #d0dce6;background:#e6edf3;color:#47627a;border-radius:7px 7px 0 0;padding:10px 15px;font-size:14px;font-weight:650;cursor:pointer;margin:0 5px 0 0}
+.mjd-form-settings-page [data-tab].active{background:#fff;color:#203c53;border-color:#cbd9e5;border-top:3px solid #0d879a;padding-top:8px}
+.mjd-form-settings-page [data-panel]{background:#fff;border:1px solid #dce5ed;border-radius:0 8px 8px 8px;padding:20px 20px 18px;margin-top:0;box-shadow:0 2px 5px rgba(22,43,61,.04)}
+.mjd-form-settings-page [data-panel] h4{font-size:15px;font-weight:700;margin:0 0 14px;color:#fff;background:#45627d;padding:10px 13px;border-radius:5px}
+.mjd-form-settings-page [data-panel] h4.mt-4{margin-top:22px!important}
+.mjd-form-settings-page [data-panel] .mt-3{margin-top:16px!important}
+.mjd-form-settings-page .row{display:flex;flex-wrap:wrap;margin-left:-9px;margin-right:-9px;gap:15px 0}
+.mjd-form-settings-page .row>[class*=col-]{padding:0 9px;flex:1 1 50%;min-width:260px;box-sizing:border-box}
+.mjd-form-settings-page .settings-note{display:block;margin:6px 0 0;padding:0;color:#60768a;font-size:12px;line-height:1.45;font-weight:400;clear:both}
+.mjd-form-settings-page .settings-note strong{color:#a83240;font-weight:650}
+.mjd-form-settings-page .settings-optional{font-size:12px;color:#71859a;font-weight:500;float:right}
+.mjd-form-settings-page .settings-static-toggle{background:#edf3f7;border:1px solid #d4e0e9;border-radius:7px;padding:9px 12px;color:#526c82;font-size:13px;font-weight:650;min-height:39px;display:flex;align-items:center}
+.mjd-form-settings-page .settings-section-note{font-size:13px;color:#60768a;margin:-5px 2px 16px;line-height:1.5}
+.mjd-form-settings-page #pk-status{font-size:12px;color:#587188;flex-basis:100%;padding:0 9px;margin-top:4px!important}
+.mjd-form-settings-page button[type=submit]{position:sticky;bottom:8px;left:auto;transform:none;max-width:100%;width:100%;z-index:20;border:0;border-radius:9px;background:#078875;color:#fff;padding:12px 16px;font-size:18px;font-weight:700;box-shadow:0 0 0 8px rgba(248,250,252,.96);cursor:pointer}
+@media(max-width:760px){.mjd-form-settings-page{padding:7px}.mjd-form-settings-page .container-fluid{min-height:0}.mjd-form-settings-page form{padding:12px 10px 82px!important}.mjd-form-settings-page h2{font-size:18px}.mjd-form-settings-page [data-tab]{display:block;width:100%;text-align:left;margin:0 0 5px}.mjd-form-settings-page [data-panel]{padding:12px}.mjd-form-settings-page .row>[class*=col-]{flex-basis:100%;min-width:0}.mjd-form-settings-page button[type=submit]{width:calc(100% - 14px);bottom:7px;font-size:16px}}
+/* Keep the settings page integrated with the site's muted background and restore clear red warning markers. */
+.mjd-form-settings-page{background:transparent!important}
+.mjd-form-settings-page .container-fluid{background:#eaf0f5!important}
+.mjd-form-settings-page form{background:#eaf0f5!important}
+.mjd-form-settings-page .settings-warning{color:#c01835!important;font-weight:700!important}
+.mjd-form-settings-page .settings-note{color:#526b83}

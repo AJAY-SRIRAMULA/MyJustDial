@@ -1,0 +1,448 @@
+/* Widget Manager layout and code editor */
+.wm-page [hidden],.wm-modal [hidden],.wm-editor-shell [hidden]{display:none!important}
+.wm-page [data-theme-toggle]{display:none!important}
+/* Only the content wrapper containing Widget Manager is allowed to expand. */
+.page-content:has(> .wm-page){max-width:none;width:auto;margin:0;padding-left:14px;padding-right:14px}
+.wm-page{color:#202124;font-family:Arial,Helvetica,sans-serif;font-size:15px;padding:16px 0 130px;width:100%;max-width:none;box-sizing:border-box}
+.wm-page .wm-panel,.wm-page .wm-alert,.wm-page .wm-top{width:100%;max-width:none;box-sizing:border-box}
+.wm-page h1{font-size:29px;font-weight:700}
+.wm-page p{font-size:15px}
+.wm-page .wm-top{margin:24px 0 28px}
+.wm-page .wm-primary{font-size:17px;padding:13px 20px;background:#075f56;text-decoration:none;display:inline-block}
+.wm-page .wm-alert{padding:18px 21px;font-size:16px}
+.wm-page .wm-filters{padding:12px 16px;gap:10px}
+.wm-page .wm-filters input[type=date]{max-width:200px}
+.wm-page .wm-table th{font-size:13px;letter-spacing:.03em}
+.wm-page .wm-table td{font-size:15px;padding:16px 13px}
+.wm-page .wm-table .wm-actions{display:table-cell}
+.wm-page .wm-table .wm-actions>a{margin-right:7px}
+.wm-page .wm-table .wm-actions details{vertical-align:middle}
+.wm-page .wm-table .wm-actions details summary{padding:9px 14px}
+.wm-page .wm-table .wm-dropdown{min-width:230px;z-index:50}
+/* Widget Manager table toolbar, sortable headings and row geometry */
+.wm-page .wm-top{align-items:center;min-height:78px;gap:28px}
+.wm-page .wm-top>div:first-child{min-width:0}
+.wm-page .wm-top .wm-primary{flex-shrink:0;white-space:nowrap}
+.wm-page .wm-panel{position:relative}
+.wm-page .wm-filters{display:grid;grid-template-columns:minmax(125px,155px) minmax(170px,1fr) minmax(120px,155px) minmax(165px,220px) auto auto 44px 44px;align-items:center;gap:10px;padding:12px 15px;background:#e9e8e5}
+.wm-page .wm-filters>*{min-width:0}
+.wm-page .wm-filters select,.wm-page .wm-filters input,.wm-page .wm-filters button{box-sizing:border-box;height:45px;font-size:15px}
+.wm-page .wm-filters .wm-search-input{width:100%;flex:none}
+.wm-page .wm-filters .wm-date-type{width:100%}
+.wm-page .wm-filters .wm-date-input{width:100%;max-width:none}
+.wm-page .wm-filters .wm-count{white-space:nowrap;text-align:right;font-size:14px;color:#666}
+.wm-page .wm-filters [data-columns-toggle],.wm-page .wm-filters [data-table-density]{padding:7px;font-size:18px}
+.wm-page .wm-bulk{min-height:54px;padding:8px 15px}
+.wm-page .wm-table-wrap{position:relative;overflow-x:auto;overflow-y:visible}
+.wm-page .wm-table{width:100%;min-width:930px;table-layout:fixed;border-collapse:collapse}
+.wm-page .wm-col-select{width:4%}.wm-page .wm-col-id{width:6%}
+.wm-page .wm-col-actions{width:19%}.wm-page .wm-col-name{width:23%}
+.wm-page .wm-col-status{width:12%}.wm-page .wm-col-created{width:12%}
+.wm-page .wm-col-updated{width:15%}.wm-page .wm-col-shortcode{width:9%}
+.wm-page .wm-table th{height:47px;padding:11px 12px;background:#efeeeb;border-bottom:1px solid #dedbd5;color:#4b535d;font-size:13px;font-weight:700;text-align:left;vertical-align:middle;white-space:nowrap}
+.wm-page .wm-table td{height:72px;padding:12px;background:#fff;vertical-align:middle;border-bottom:1px solid #dedbd5;overflow:visible}
+.wm-page .wm-table tbody tr:nth-child(even) td{background:#f5f5f5}
+.wm-page .wm-table tbody tr:hover td{background:#edf4f2}
+.wm-page .wm-table input[type=checkbox]{width:17px;height:17px;accent-color:#075f56}
+.wm-page .wm-sort-heading{display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:inherit}
+.wm-page .wm-sort-heading:hover{color:#075d55}
+.wm-page .wm-sort-arrows{display:inline-flex;flex-direction:column;justify-content:center;font-size:11px;font-weight:700;line-height:9px;color:#aeb1b1}
+.wm-page .wm-sort-arrows span.is-active{color:#006c68}
+.wm-page .wm-table .wm-actions{position:relative;white-space:nowrap}
+.wm-page .wm-table .wm-black{padding:10px 15px}
+.wm-page .wm-table .wm-actions details{position:relative;display:inline-block}
+.wm-page .wm-table .wm-actions summary{padding:9px 14px;border-radius:8px;font-size:14px}
+.wm-page .wm-row-actions .wm-dropdown{position:fixed!important;width:255px;min-width:255px;max-height:min(440px,75vh);overflow-y:auto;z-index:10000;box-sizing:border-box;background:#fff;border:1px solid #d8d8d8;border-radius:12px;box-shadow:0 14px 35px #0002;padding:8px;top:0;left:0;right:auto}
+.wm-page .wm-row-actions .wm-dropdown button{display:block;width:100%;font-size:14px;line-height:1.4;text-align:left;padding:11px 13px;background:#fff;border:0;border-radius:6px;color:#232323;white-space:nowrap}
+.wm-page .wm-row-actions .wm-dropdown button:hover,.wm-page .wm-row-actions .wm-dropdown button:focus-visible{background:#ededed}
+.wm-page .wm-row-actions .wm-dropdown button[value=delete]{color:#c32d2d;border-top:1px solid #e2e2e2;border-radius:0}
+.wm-page .wm-table .wm-actions .wm-dropdown form{display:block}
+.wm-page .wm-table .wm-actions details[open]{z-index:2000}
+.wm-page .wm-table .wm-status{white-space:nowrap}
+.wm-page .wm-column-menu{position:absolute;right:60px;top:62px;z-index:1100;width:210px;padding:14px;background:#fff;border:1px solid #d9d9d9;border-radius:10px;box-shadow:0 9px 28px #0002}
+.wm-page .wm-column-menu strong{display:block;margin-bottom:9px;font-size:14px}
+.wm-page .wm-column-menu label{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:14px;cursor:pointer}
+.wm-page .wm-top .wm-primary{position:relative;z-index:1}
+.wm-page .wm-table-wrap{padding-bottom:8px}
+.wm-toast{top:110px;bottom:auto;right:22px;max-width:340px;min-height:48px;padding:12px 18px;box-sizing:border-box}
+@media(max-width:1450px){.wm-page .wm-filters{grid-template-columns:145px minmax(145px,1fr) 125px 180px auto auto 40px 40px;gap:8px}}
+@media(max-width:1120px){.wm-page .wm-filters{display:flex;flex-wrap:wrap}.wm-page .wm-filters .wm-search-input{flex:1 1 230px}.wm-page .wm-filters .wm-date-input{width:180px}.wm-page .wm-filters .wm-count{margin-left:auto}}
+.wm-name-copy{border:0;background:transparent;color:#4a5b65;font-size:19px;vertical-align:middle}
+.wm-bulk{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#f9f8f6;border-bottom:1px solid #ddd}
+.wm-bulk select,.wm-bulk button{border:1px solid #d2d2d2;border-radius:7px;padding:8px 11px;background:#fff;color:inherit}
+.wm-table.wm-compact td{padding:7px 13px!important}
+.wm-table.wm-hide-shortcode th:last-child,.wm-table.wm-hide-shortcode td:last-child{display:none}
+.wm-pages select{margin:0 8px;padding:10px;border:1px solid #ddd;border-radius:8px;background:#fff}
+.wm-editor-page .wm-breadcrumb{margin:12px 0 25px}
+.wm-editor-page .wm-edit-toolbar{margin-top:32px}
+.wm-page .wm-editor-shell{background:#fff;border:1px solid #d8d8d8;border-radius:16px;overflow:hidden}
+.wm-editor-controls{min-height:50px;background:#f7f7f7;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.wm-editor-controls button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:#68717e;width:34px;height:34px;border-radius:5px}
+.wm-editor-controls button:hover,.wm-editor-controls button:focus-visible{background:#e4e6e9;color:#202e38}
+.wm-editor-controls svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.wm-editor-actions{display:flex;align-items:center;gap:4px}
+.wm-editor-find{padding:8px 18px;display:flex;gap:8px;border-bottom:1px solid #ddd}
+.wm-editor-find[hidden],.wm-code-layer[hidden]{display:none!important}
+.wm-editor-find input{flex:1;padding:8px;border:1px solid #cbd2d8;border-radius:6px}
+.wm-editor-find button{border:1px solid #cbd2d8;border-radius:6px;background:#fff;padding:7px 12px}
+.wm-code-area{position:relative}
+.wm-code-layer{display:flex;height:550px;overflow:hidden;background:#fff}
+.wm-line-numbers{font:15px/28px Consolas,Monaco,monospace;min-width:76px;padding:15px 16px 15px 8px;white-space:pre;text-align:right;background:#f7f7f7;border-right:1px solid #ddd;color:#82909f;overflow:hidden;user-select:none}
+.wm-syntax{position:relative;min-width:0;flex:1;background:transparent}
+.wm-syntax pre,.wm-syntax textarea{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;margin:0;border:0;border-radius:0;resize:none;overflow:auto;white-space:pre;tab-size:4;padding:15px 12px;font:15px/28px Consolas,Monaco,monospace;letter-spacing:0}
+.wm-syntax pre{pointer-events:none;color:#243443;background:transparent}
+.wm-syntax pre code{font:inherit}
+.wm-syntax textarea{background:transparent;color:transparent;caret-color:#111;z-index:1;-webkit-text-fill-color:transparent}
+.wm-syntax textarea::selection{background:#90b7ed77;-webkit-text-fill-color:transparent}
+.wm-syntax textarea:focus{outline:0}
+.tok-tag{color:#051fd6}.tok-punct{color:#007c23}.tok-attr{color:#994321}.tok-prop{color:#9a205e}.tok-value{color:#008061}.tok-keyword{color:#ad005f}
+.wm-editor-status{display:flex;justify-content:space-between;background:#f7f7f7;color:#687481;border-top:1px solid #ddd;padding:5px 16px;font-size:12px}
+.wm-fullscreen{position:fixed!important;inset:8px!important;z-index:10000!important;box-shadow:0 0 0 20px #000a}
+.wm-fullscreen .wm-code-layer{height:calc(100vh - 130px)}
+.wm-preview-dialog{width:min(1000px,94vw);max-width:96vw;border:0;border-radius:14px;padding:0;box-shadow:0 18px 50px #0006}
+.wm-preview-dialog::backdrop{background:#0009}
+.wm-preview-head{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #ddd}
+.wm-preview-head button{background:#075f56;color:white;border:0;padding:10px 16px;border-radius:7px}
+.wm-title-edit{border:0;background:transparent;font-size:24px;color:#344453;cursor:pointer}
+.wm-page .wm-tools{gap:12px}
+.wm-page .wm-tools details summary,.wm-page .wm-outline{padding:12px 16px}
+.wm-page .wm-tools .wm-dropdown{padding:9px 12px;min-width:230px}
+.wm-page .wm-tools .wm-dropdown a{display:block;padding:10px;color:inherit}
+.wm-page .wm-tools .wm-dropdown button{font-size:15px}
+.wm-modal .wm-editor-shell .wm-code-layer{height:340px}
+.wm-modal .wm-modal-body{max-height:72vh}
+.wm-toast.wm-error{background:#ad2727}
+/* Dark theme is deliberately limited to code editor content. */
+.wm-editor-shell.wm-dark{background:#111820;border-color:#354558}
+.wm-editor-shell.wm-dark .wm-code-layer,
+.wm-editor-shell.wm-dark .wm-syntax{background:#101720;color:#dae7fa;border-color:#354558}
+.wm-editor-shell.wm-dark .wm-editor-controls,
+.wm-editor-shell.wm-dark .wm-line-numbers,
+.wm-editor-shell.wm-dark .wm-editor-status{background:#1c2938;color:#a1b0c4;border-color:#354558}
+.wm-editor-shell.wm-dark .wm-editor-controls button{color:#b8cbe0}
+.wm-editor-shell.wm-dark .wm-editor-controls button:hover,
+.wm-editor-shell.wm-dark .wm-editor-controls button:focus-visible{background:#304356;color:#fff}
+.wm-editor-shell.wm-dark .wm-syntax pre{color:#dbe7fb}
+.wm-editor-shell.wm-dark .wm-syntax textarea{caret-color:#e8f2ff}
+.wm-editor-shell.wm-dark .wm-editor-find{background:#1c2938;border-color:#354558}
+.wm-editor-shell.wm-dark .wm-editor-find input,
+.wm-editor-shell.wm-dark .wm-editor-find button{background:#26384b;color:#f1f5fa;border-color:#50647b}
+.wm-editor-shell.wm-dark .tok-tag{color:#93b9ff}
+.wm-editor-shell.wm-dark .tok-punct{color:#65ceaa}
+.wm-editor-shell.wm-dark .tok-attr{color:#f4bc8c}
+.wm-editor-shell.wm-dark .tok-prop{color:#ff99c5}
+.wm-editor-shell.wm-dark .tok-value{color:#82d8bc}
+.wm-editor-shell.wm-dark .tok-keyword{color:#ffa7d0}
+@media(max-width:1000px){.wm-page .wm-code-layer{height:420px}}
+@media(max-width:760px){.page-content:has(> .wm-page){padding-left:10px;padding-right:10px}.wm-page{padding:12px 0 120px}.wm-page .wm-edit-toolbar{flex-wrap:wrap}.wm-page .wm-filters input[type=date]{max-width:none}.wm-page .wm-code-layer{height:380px}}
+
+/* BD reference alignment: compact combined filters and six-column widget listing. */
+.wm-page .wm-filters{display:grid;grid-template-columns:minmax(320px,1.2fr) minmax(260px,.82fr) auto 44px 44px;gap:10px;align-items:center;padding:10px 14px;background:#e8e7e4;border-radius:13px 13px 0 0}
+.wm-page .wm-filter-combo{height:44px;min-width:0;display:flex;align-items:center;background:#fff;border:1px solid #d2d2d2;border-radius:10px;box-sizing:border-box;overflow:visible}
+.wm-page .wm-filter-combo:focus-within{border-color:#08786f;box-shadow:0 0 0 1px #08786f}
+.wm-page .wm-filter-combo select{height:100%;border:0;background:transparent;border-radius:10px;padding:0 12px;font-size:15px;min-width:0;box-shadow:none}
+.wm-page .wm-status-search select{width:145px;flex:0 0 145px}
+.wm-page .wm-filter-divider{height:24px;width:1px;background:#d5d2ce;flex:0 0 1px}
+.wm-page .wm-search-icon{padding:0 8px 0 13px;color:#596a78;font-size:22px;line-height:1}
+.wm-page .wm-filter-combo .wm-search-input{height:100%;width:100%;min-width:0;flex:1;border:0!important;outline:0;box-shadow:none!important;background:transparent;padding:0 12px 0 0;font-size:15px}
+.wm-page .wm-date-combo select{width:125px;flex:0 0 125px}
+.wm-page .wm-date-range{height:100%;flex:1;min-width:0;position:relative}
+.wm-page .wm-date-range>summary{height:100%;box-sizing:border-box;display:flex;align-items:center;gap:9px;padding:0 13px;border:0;background:transparent;border-radius:9px;color:#65717d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;list-style:none}
+.wm-page .wm-date-range>summary::-webkit-details-marker{display:none}
+.wm-page .wm-date-range>summary span:last-child{overflow:hidden;text-overflow:ellipsis}
+.wm-page .wm-date-popover{position:absolute;top:calc(100% + 8px);right:0;width:260px;padding:14px;background:#fff;border:1px solid #d8d8d8;border-radius:10px;box-shadow:0 12px 30px #0002;z-index:1200}
+.wm-page .wm-date-popover label{display:block;font-size:12px;color:#65717d;margin:0 0 10px}
+.wm-page .wm-date-popover input{display:block;width:100%;height:38px;margin-top:5px;padding:7px 9px;border:1px solid #d4d4d4;border-radius:6px;box-sizing:border-box}
+.wm-page .wm-date-popover>div{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.wm-page .wm-date-popover button{padding:8px 12px;border:1px solid #d2d2d2;border-radius:6px;background:#fff}
+.wm-page .wm-date-popover button[type=submit]{background:#075f56;color:#fff;border-color:#075f56}
+.wm-page .wm-filters .wm-count{margin:0 2px 0 auto;white-space:nowrap;color:#53606c;font-size:14px}
+.wm-page .wm-filters .wm-icon-button{width:44px;height:44px;padding:0;border:1px solid #d2d2d2;border-radius:10px;background:#fff;color:#263642;font-size:19px;display:flex;align-items:center;justify-content:center}
+.wm-page .wm-filters .wm-icon-button:hover{background:#f5f7f7;border-color:#aab8b5}
+.wm-page .wm-bulk[hidden]{display:none!important}
+.wm-page .wm-bulk:not([hidden]){display:flex;align-items:center;gap:9px;padding:9px 16px;background:#f8f7f5;border-bottom:1px solid #dedbd5}
+.wm-page .wm-bulk span{font-size:13px;color:#68717b;margin-right:4px}
+.wm-page .wm-bulk select,.wm-page .wm-bulk button{height:38px;padding:7px 12px;border:1px solid #d2d2d2;border-radius:7px;background:#fff}
+.wm-page .wm-table{width:100%;min-width:1050px;table-layout:fixed;border-collapse:collapse}
+.wm-page .wm-col-select{width:4%}.wm-page .wm-col-id{width:5%}.wm-page .wm-col-actions{width:17%}.wm-page .wm-col-name{width:22%}.wm-page .wm-col-status{width:14%}.wm-page .wm-col-created{width:17%}.wm-page .wm-col-updated{width:21%}
+.wm-page .wm-table th{height:46px;padding:10px 12px;background:#f2f1ee;border-bottom:1px solid #d8d5cf;color:#4c5661;font-size:13px;font-weight:700;letter-spacing:.025em;text-align:left;vertical-align:middle;white-space:nowrap}
+.wm-page .wm-table th[colspan="2"]{padding-left:12px}
+.wm-page .wm-table td{height:58px;padding:10px 12px;background:#fff;vertical-align:middle;border-bottom:1px solid #dedbd5;overflow:visible;font-size:15px}
+.wm-page .wm-table tbody tr:nth-child(even) td{background:#f6f5f3}
+.wm-page .wm-table tbody tr:hover td{background:#edf4f2}
+.wm-page .wm-table .wm-id-cell{font-variant-numeric:tabular-nums}
+.wm-page .wm-table .wm-actions{position:relative;white-space:nowrap}
+.wm-page .wm-table .wm-actions>a{margin-right:6px}
+.wm-page .wm-table .wm-black{padding:9px 14px;border-radius:9px;font-size:14px}
+.wm-page .wm-table .wm-actions details{position:relative;display:inline-block;vertical-align:middle}
+.wm-page .wm-table .wm-actions summary{padding:9px 13px;border-radius:9px;font-size:14px;line-height:1.2}
+.wm-page .wm-sort-heading{display:inline-flex;align-items:center;gap:5px;color:inherit;text-decoration:none}
+.wm-page .wm-sort-arrows{display:inline-flex;flex-direction:column;justify-content:center;font-size:11px;font-weight:700;line-height:8px;color:#b5b8b8}
+.wm-page .wm-sort-arrows span.is-active{color:#006b65}
+.wm-page .wm-name-cell a{color:#00645c;text-decoration:none}
+.wm-page .wm-updated-cell{display:flex;align-items:center;justify-content:space-between;gap:12px;white-space:nowrap}
+.wm-page .wm-copy{flex:0 0 auto;padding:8px 13px;border:1px solid #dedede;border-radius:9px;background:#fff;color:#202124;font-size:14px}
+.wm-page .wm-copy:hover{background:#f4f7f6;border-color:#b8c9c5}
+.wm-page .wm-empty{text-align:center;padding:24px!important;color:#68717b}
+.wm-page .wm-column-menu{top:62px;right:58px}
+.wm-page .wm-table.wm-hide-name :is(th,td,col):nth-child(4),
+.wm-page .wm-table.wm-hide-status :is(th,td,col):nth-child(5),
+.wm-page .wm-table.wm-hide-created :is(th,td,col):nth-child(6),
+.wm-page .wm-table.wm-hide-updated :is(th,td,col):nth-child(7){display:none}
+.wm-page .wm-pages{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 0;color:#65717d}
+.wm-page .wm-page-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wm-page .wm-page-summary label{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.wm-page .wm-pages select{height:38px;margin:0 0 0 2px;padding:6px 12px;border:1px solid #d7d7d7;border-radius:9px;background:#fff}
+.wm-page .wm-pagination{display:flex;align-items:center;gap:6px;margin-left:auto}
+.wm-page .wm-pagination a,.wm-page .wm-current-page{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dedede;border-radius:10px;background:#fff;color:#4e5964;text-decoration:none;font-size:20px}
+.wm-page .wm-pagination .wm-current-page{background:#282828;border-color:#282828;color:#fff;font-size:15px;font-weight:700}
+.wm-page .wm-pagination a.is-disabled{opacity:.45;pointer-events:none}
+.wm-page .wm-default{margin-top:22px;padding:20px}
+.wm-page .wm-default h2{margin:-20px -20px 15px;padding:16px;background:#e7e6e3;font-size:20px}
+.wm-page .wm-default p{padding:0 2px 2px}
+@media(max-width:1100px){
+  .wm-page .wm-filters{grid-template-columns:minmax(250px,1fr) minmax(230px,.8fr) auto 42px 42px;gap:7px}
+  .wm-page .wm-status-search select{width:120px;flex-basis:120px}
+  .wm-page .wm-date-combo select{width:105px;flex-basis:105px}
+}
+@media(max-width:760px){
+  .wm-page .wm-filters{display:flex;flex-wrap:wrap}
+  .wm-page .wm-filter-combo{flex:1 1 100%;min-width:0}
+  .wm-page .wm-filters .wm-count{margin-left:auto}
+  .wm-page .wm-pages{align-items:flex-start;flex-direction:column}
+  .wm-page .wm-pagination{margin-left:0}
+}
+.wm-page .wm-table .wm-column-created,.wm-page .wm-table .wm-date-stack{font-variant-numeric:tabular-nums}
+.wm-page .wm-table .wm-column-created small,.wm-page .wm-table .wm-date-stack small{display:block;margin-top:2px;color:#68717b;font-size:13px;line-height:1.25}
+.wm-page .wm-table.wm-hide-name .wm-column-name,.wm-page .wm-table.wm-hide-name .wm-col-name,
+.wm-page .wm-table.wm-hide-status .wm-column-status,.wm-page .wm-table.wm-hide-status .wm-col-status,
+.wm-page .wm-table.wm-hide-created .wm-column-created,.wm-page .wm-table.wm-hide-created .wm-col-created,
+.wm-page .wm-table.wm-hide-updated .wm-column-updated,.wm-page .wm-table.wm-hide-updated .wm-col-updated{display:none}
+
+
+/* Final typography, table-cell and editor border cleanup */
+.wm-page{font-family:Arial,Helvetica,sans-serif;font-size:15px}
+.wm-page h1{font-size:28px;line-height:1.2;letter-spacing:-.25px}
+.wm-page .wm-top p{font-size:15px;line-height:1.45}
+.wm-page .wm-alert{font-size:16px;line-height:1.4;padding:17px 20px}
+.wm-page .wm-primary{font-size:15px;line-height:1.25;padding:12px 18px}
+.wm-page .wm-filters .wm-filter-combo select,
+.wm-page .wm-filters .wm-search-input,
+.wm-page .wm-filters .wm-date-range>summary{font-size:14px}
+.wm-page .wm-filters .wm-count{font-size:14px}
+.wm-page .wm-table th{font-size:13px;letter-spacing:.02em}
+.wm-page .wm-table td{font-size:15px;line-height:1.3}
+.wm-page .wm-table .wm-column-created small,
+.wm-page .wm-table .wm-date-stack small{font-size:13px}
+.wm-page .wm-table .wm-black{font-size:14px;line-height:1.2;padding:9px 14px}
+.wm-page .wm-table .wm-actions summary{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:38px;box-sizing:border-box;font-size:14px;line-height:1.2;padding:8px 13px}
+.wm-page .wm-action-chevron{display:inline-block;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin-top:-4px;flex:0 0 auto}
+.wm-page .wm-row-actions[open] .wm-action-chevron,
+.wm-page .wm-tools details[open] .wm-action-chevron{transform:rotate(225deg);margin-top:4px}
+.wm-page .wm-row-actions .wm-dropdown button{font-size:14px}
+
+/* Keep the Updated column as a real table cell; flex on a TD caused
+   its bottom border to sit outside the row and look like a duplicate line. */
+.wm-page .wm-table td.wm-updated-cell{display:table-cell;position:relative;vertical-align:middle;white-space:nowrap}
+.wm-page .wm-table td.wm-updated-cell .wm-date-stack{display:inline-block;vertical-align:middle}
+.wm-page .wm-table td.wm-updated-cell .wm-copy{float:right;vertical-align:middle}
+.wm-page .wm-table-wrap{padding-bottom:0!important}
+.wm-page .wm-table tbody td{border-bottom:1px solid #dedbd5}
+.wm-page .wm-table tbody tr:last-child td{border-bottom:0}
+
+/* Edit Widget toolbar and editor typography */
+.wm-page .wm-editor-page .wm-breadcrumb{font-size:15px;line-height:1.4;margin:13px 0 22px}
+.wm-page .wm-editor-page .wm-top{min-height:62px;margin:16px 0 24px}
+.wm-page .wm-editor-page .wm-top h1{font-size:26px;line-height:1.25}
+.wm-page .wm-editor-page .wm-top>div{align-items:center;gap:10px}
+.wm-page .wm-editor-page .wm-search input,
+.wm-page .wm-editor-page .wm-search button{font-size:14px;min-height:40px}
+.wm-page .wm-edit-toolbar{margin-top:26px;min-height:50px}
+.wm-page .wm-tabs button{font-size:16px;padding:13px 14px}
+.wm-page .wm-tools{gap:9px}
+.wm-page .wm-tools details summary,
+.wm-page .wm-tools .wm-outline{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;box-sizing:border-box;padding:9px 13px;font-size:14px;line-height:1.2}
+.wm-page .wm-tools .wm-dropdown button,
+.wm-page .wm-tools .wm-dropdown a{font-size:14px}
+.wm-page .wm-hint{font-size:14px;line-height:1.5;margin:17px 0 12px!important}
+.wm-page .wm-editor-shell{border:1px solid #d8d8d8;border-radius:13px;overflow:hidden}
+.wm-page .wm-editor-controls{min-height:46px;border:0;border-bottom:1px solid #ddd}
+.wm-page .wm-editor-controls button{width:33px;height:33px}
+.wm-page .wm-editor-controls svg{width:17px;height:17px}
+.wm-page .wm-code-layer{height:540px;border:0}
+.wm-page .wm-line-numbers{font-size:14px;line-height:26px;min-width:70px}
+.wm-page .wm-syntax pre,
+.wm-page .wm-syntax textarea{font-size:14px;line-height:26px}
+.wm-page .wm-syntax pre{border:0;outline:0}
+.wm-page .wm-syntax textarea{border:0;outline:0;box-shadow:none}
+.wm-page .wm-editor-status{font-size:12px;border:0;border-top:1px solid #ddd}
+.wm-page .wm-type{font-size:14px}
+.wm-page .wm-type input,
+.wm-page .wm-type select{font-size:14px}
+@media(max-width:850px){
+  .wm-page h1{font-size:25px}
+  .wm-page .wm-alert{font-size:14px}
+  .wm-page .wm-table th{font-size:12px}
+  .wm-page .wm-table td{font-size:14px}
+  .wm-page .wm-code-layer{height:420px}
+}
+.wm-page .wm-tools .wm-butler{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:10px 17px;border:0;border-radius:10px;background:linear-gradient(110deg,#4055f5,#6c35e9);color:#fff;font-size:16px;font-weight:600;white-space:nowrap}
+.wm-page .wm-tools .wm-butler:hover{filter:brightness(1.06)}
+
+
+/* Compact typography pass for Widget Manager and Edit Widget */
+.wm-page{font-size:14px}
+.wm-page h1{font-size:25px;line-height:1.22;letter-spacing:-.2px}
+.wm-page .wm-alert{font-size:15px;line-height:1.4;padding:15px 18px}
+.wm-page .wm-top p{font-size:14px;line-height:1.45}
+.wm-page .wm-primary{font-size:14px;padding:10px 15px}
+.wm-page .wm-filters .wm-filter-combo select,
+.wm-page .wm-filters .wm-search-input,
+.wm-page .wm-filters .wm-date-range>summary,
+.wm-page .wm-filters .wm-count{font-size:13px}
+.wm-page .wm-filters .wm-icon-button{width:40px;height:40px;font-size:16px}
+.wm-page .wm-table th{font-size:12px;letter-spacing:.02em}
+.wm-page .wm-table td{font-size:14px;line-height:1.3}
+.wm-page .wm-table .wm-column-created small,
+.wm-page .wm-table .wm-date-stack small{font-size:12px}
+.wm-page .wm-table .wm-black,
+.wm-page .wm-table .wm-actions summary,
+.wm-page .wm-copy{font-size:13px}
+.wm-page .wm-table .wm-black{padding:8px 12px}
+.wm-page .wm-table .wm-actions summary{min-height:35px;padding:7px 11px;gap:8px}
+.wm-page .wm-dropdown{font-size:13px}
+.wm-page .wm-dropdown button{font-size:13px;padding:8px 9px}
+.wm-page .wm-pages,.wm-page .wm-page-summary{font-size:13px}
+.wm-page .wm-pages select{font-size:13px;height:34px}
+
+/* Edit Widget page typography */
+.wm-page .wm-editor-page .wm-breadcrumb{font-size:13px;margin:10px 0 18px}
+.wm-page .wm-editor-page .wm-top{min-height:54px;margin:12px 0 20px}
+.wm-page .wm-editor-page .wm-top h1{font-size:23px;line-height:1.25}
+.wm-page .wm-editor-page .wm-search input,
+.wm-page .wm-editor-page .wm-search button{font-size:13px;min-height:36px}
+.wm-page .wm-edit-toolbar{margin-top:20px;min-height:44px}
+.wm-page .wm-tabs button{font-size:14px;padding:11px 12px}
+.wm-page .wm-tools{gap:8px}
+.wm-page .wm-tools details summary,
+.wm-page .wm-tools .wm-outline,
+.wm-page .wm-tools .wm-butler{font-size:13px;min-height:36px;padding:8px 11px}
+.wm-page .wm-hint{font-size:12px;line-height:1.45;margin:14px 0 10px!important}
+.wm-page .wm-editor-controls{min-height:40px}
+.wm-page .wm-editor-controls button{width:30px;height:30px}
+.wm-page .wm-editor-controls svg{width:15px;height:15px}
+.wm-page .wm-code-layer{height:500px}
+.wm-page .wm-line-numbers{font-size:13px;line-height:24px;min-width:60px}
+.wm-page .wm-syntax pre,
+.wm-page .wm-syntax textarea{font-size:13px;line-height:24px}
+.wm-page .wm-editor-status{font-size:11px}
+.wm-page .wm-type{font-size:13px}
+.wm-page .wm-type input,
+.wm-page .wm-type select{font-size:13px}
+
+/* Revision dropdown: compact, scrollable, and aligned with the trigger. */
+.wm-page .wm-tools .wm-revisions-menu{position:relative}
+.wm-page .wm-tools .wm-revisions-dropdown{width:310px;max-width:min(82vw,360px);max-height:360px;overflow:auto;right:0;top:calc(100% + 5px);padding:7px}
+.wm-page .wm-current-revision{padding:8px 9px;border-bottom:1px solid #e7e7e7;color:#58636e;font-size:12px;line-height:1.4}
+.wm-page .wm-revision-list{display:flex;flex-direction:column;gap:2px;padding:5px 0}
+.wm-page .wm-revision-list button{display:flex;flex-direction:column;gap:3px;padding:8px 9px;border:0;border-radius:6px;background:#fff;text-align:left;color:#26333d;font-size:13px}
+.wm-page .wm-revision-list button:hover{background:#eef4f2}
+.wm-page .wm-revision-list button small{font-size:11px;color:#77818a}
+.wm-page .wm-no-revisions{padding:10px;color:#6c7780;font-size:12px;line-height:1.45}
+.wm-page .wm-view-history{display:block;padding:8px 9px;border-top:1px solid #e7e7e7;color:#075f56;font-size:12px;text-decoration:none}
+@media(max-width:850px){
+  .wm-page h1{font-size:22px}
+  .wm-page .wm-editor-page .wm-top h1{font-size:21px}
+  .wm-page .wm-table th{font-size:11px}
+  .wm-page .wm-table td{font-size:13px}
+  .wm-page .wm-code-layer{height:400px}
+}
+
+
+/* Unsaved editor state: a dot marks each modified HTML/CSS/JavaScript tab. */
+.wm-page .wm-tabs [data-code-tab]{position:relative}
+.wm-page .wm-tabs [data-code-tab].wm-tab-dirty::after{
+  content:"";display:inline-block;width:7px;height:7px;margin-left:7px;
+  vertical-align:middle;border-radius:50%;background:#a56a08;
+  box-shadow:0 0 0 2px rgba(165,106,8,.12)
+}
+.wm-unsaved-bar{
+  position:fixed;z-index:5000;top:12px;left:50%;transform:translate(-50%,-14px);
+  display:flex;align-items:center;gap:11px;min-height:54px;padding:8px 11px 8px 18px;
+  width:max-content;max-width:calc(100vw - 28px);box-sizing:border-box;
+  background:#fff;border:1px solid #d8d2c9;border-radius:15px;
+  box-shadow:0 8px 28px rgba(0,0,0,.16);opacity:0;visibility:hidden;
+  transition:opacity .16s ease,transform .16s ease,visibility .16s ease;
+  color:#242424;font-size:14px
+}
+.wm-unsaved-bar.is-visible{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.wm-unsaved-indicator{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:#a56a08}
+.wm-unsaved-bar strong{font-size:14px;font-weight:600;white-space:nowrap}
+.wm-unsaved-actions{display:flex;align-items:center;gap:8px;margin-left:12px}
+.wm-unsaved-actions button{height:38px;padding:0 15px;border:1px solid #d5d2ce;border-radius:10px;
+  background:#fff;color:#222;font-size:13px;font-weight:600;cursor:pointer}
+.wm-unsaved-actions [data-save-widget]{background:#075f56;color:#fff;border-color:#075f56}
+.wm-unsaved-actions button:disabled{opacity:.6;cursor:wait}
+@media(max-width:520px){
+ .wm-unsaved-bar{top:8px;gap:7px;padding:7px 8px 7px 11px}
+ .wm-unsaved-actions{gap:5px;margin-left:3px}
+ .wm-unsaved-actions button{height:34px;padding:0 10px;font-size:12px}
+ .wm-unsaved-bar strong{font-size:12px}
+}
+
+
+/* V5: one unsaved-changes action bar, positioned in the page's top whitespace. */
+.wm-unsaved-bar{
+  top:110px;left:50%;width:560px;max-width:calc(100vw - 32px);
+  min-height:66px;padding:10px 12px 10px 22px;gap:13px;
+  border-radius:16px;transform:translate(-50%,-10px);
+  box-shadow:0 7px 25px rgba(0,0,0,.15);font-size:15px
+}
+.wm-unsaved-bar.is-visible{transform:translate(-50%,0)}
+.wm-unsaved-bar strong{font-size:15px}
+.wm-unsaved-indicator{width:10px;height:10px;flex-basis:10px}
+.wm-unsaved-actions{gap:10px;margin-left:auto}
+.wm-unsaved-actions button{height:42px;min-width:94px;padding:0 18px;font-size:14px}
+.wm-unsaved-actions [data-save-widget]{min-width:82px}
+
+/* Match the supplied discard-confirmation dialog. */
+.wm-discard-overlay[hidden]{display:none!important}
+.wm-discard-overlay{
+  position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(9,14,23,.70);box-sizing:border-box
+}
+.wm-discard-dialog{
+  width:605px;max-width:calc(100vw - 36px);min-height:330px;padding:34px 32px 30px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-sizing:border-box;background:#fff;border:1px solid #e3e3e3;border-radius:22px;
+  box-shadow:0 18px 55px rgba(0,0,0,.22);text-align:center;color:#202020
+}
+.wm-discard-icon{
+  width:68px;height:68px;border:4px solid #a36b08;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:#a36b08;
+  font-size:46px;font-weight:400;line-height:1;margin-bottom:23px
+}
+.wm-discard-dialog h2{margin:0 0 14px;font-size:24px;line-height:1.25;font-weight:700;color:#202020}
+.wm-discard-dialog p{margin:0 0 34px;font-size:18px;line-height:1.4;color:#666}
+.wm-discard-actions{display:flex;align-items:center;justify-content:center;gap:16px}
+.wm-discard-actions button{
+  min-width:162px;height:54px;padding:0 20px;border:1px solid #d7d7d7;border-radius:12px;
+  background:#fff;color:#222;font-size:16px;font-weight:600;cursor:pointer;
+  box-shadow:0 1px 2px rgba(0,0,0,.05)
+}
+.wm-discard-actions [data-confirm-discard]{
+  min-width:204px;background:#bd2418;border-color:#bd2418;color:#fff
+}
+.wm-discard-actions button:hover{filter:brightness(.97)}
+body.wm-discard-open{overflow:hidden}
+@media(max-width:600px){
+ .wm-unsaved-bar{top:110px;width:calc(100vw - 20px);padding:8px 9px 8px 13px;min-height:56px}
+ .wm-unsaved-actions{gap:6px}
+ .wm-unsaved-actions button{min-width:0;height:36px;padding:0 11px;font-size:12px}
+ .wm-discard-dialog{min-height:280px;padding:26px 18px}
+ .wm-discard-dialog h2{font-size:20px}
+ .wm-discard-dialog p{font-size:15px;margin-bottom:25px}
+ .wm-discard-actions{gap:9px;flex-wrap:wrap}
+ .wm-discard-actions button{min-width:130px;height:46px;font-size:14px}
+ .wm-discard-actions [data-confirm-discard]{min-width:160px}
+}

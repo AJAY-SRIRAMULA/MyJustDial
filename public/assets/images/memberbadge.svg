@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 180" role="img" aria-labelledby="title">
+<title id="title">Brilliant Directories Member badge</title>
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5d65e"/><stop offset=".5" stop-color="#bd8d00"/><stop offset="1" stop-color="#f4d34f"/></linearGradient></defs>
+<g fill="url(#gold)" stroke="#bd8d00" stroke-width="2">
+<path d="M110 4l13 17 20-11 5 21 22-2-4 22 20 9-13 18 15 17-19 12 5 22-22-1-7 21-19-11-16 17-16-17-19 11-7-21-22 1 5-22-19-12 15-17-13-18 20-9-4-22 22 2 5-21 20 11z"/>
+<circle cx="110" cy="91" r="59" fill="none" stroke-width="5"/>
+<circle cx="110" cy="91" r="48" fill="none" stroke-width="2"/>
+</g>
+<g fill="#fff" font-family="Arial,sans-serif" text-anchor="middle">
+<text x="110" y="56" font-size="13">★ ★ ★</text>
+<text x="110" y="103" font-size="25" font-weight="700" letter-spacing="1">MEMBER</text>
+<text x="110" y="126" font-size="12">★ ★ ★</text>
+</g></svg>

@@ -1,0 +1,36 @@
+# Local configuration and secrets
+.env
+.env.*
+config/config.local.php
+config/config.php
+
+# Runtime / uploaded data
+uploads/*
+!uploads/member_files/
+!uploads/member_files/.htaccess
+images/*
+!images/.htaccess
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+~*
+
+# PHP tooling / dependency artifacts
+vendor/
+node_modules/
+coverage/
+.cache/
+
+database/*.sql
