@@ -67,4 +67,4 @@ window.MJD_COMPONENT_PREVIEW_URL = <?= json_encode($config['base_url'] . '/admin
 window.MJD_FORM_ID = <?= (int)$form['form_id'] ?>;
 window.MJD_CSRF_TOKEN = <?= json_encode(csrfToken()) ?>;
 </script>
-<script src="<?= $base ?>/assets/js/form-builder.js"></script>
+<script src="<?= $base ?>/assets/js/form-builder.js?v=20261124-2"></script>

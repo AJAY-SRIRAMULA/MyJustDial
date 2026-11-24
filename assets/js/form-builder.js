@@ -446,9 +446,20 @@
     var help = f.help ? '<small class="pv-help">' + esc(f.help) + '</small>' : '';
     return '<div class="pv-field">' + label + pvControl(f) + help + '</div>';
   }
+  function mountPreviewMarkup(target, markup) {
+    var frame = document.createElement('iframe');
+    frame.title = 'Interactive widget preview';
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.style.cssText = 'width:100%;height:420px;border:0;background:transparent';
+    target.replaceChildren(frame);
+    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;font:inherit;font-family:Arial,sans-serif}*{box-sizing:border-box}input,select,textarea{max-width:100%}</style></head><body>' + markup + '</body></html>';
+  }
+
+  var previewGeneration = 0;
   function renderPreview() {
+    var generation = ++previewGeneration;
     var html = fields.map(function (field) {
-      if (field.type === 'html' && /\[widget=[a-zA-Z0-9_.-]+\]/.test(String(field.label || '') + ' ' + String(field.description || ''))) {
+      if (field.type === 'html' && /\[widget=[^\]\r\n]+\]/.test(String(field.label || '') + ' ' + String(field.description || ''))) {
         return '<div class="pv-field pv-html" data-widget-field="' + esc(field.id) + '">Loading widget preview...</div>';
       }
       if (field.type === 'html' && /\.php$/i.test(String(field.label || '').trim())) {
@@ -459,13 +470,14 @@
     preview.innerHTML = html || '<div class="pv-empty"><strong>Your form preview will appear here</strong>Add fields on the left and press Save Changes.</div>';
     fields.forEach(function(field){
       var content=String(field.label||'')+' '+String(field.description||'');
-      if(field.type!=='html'||!/\[widget=[a-zA-Z0-9_.-]+\]/.test(content))return;
+      if(field.type!=='html'||!/\[widget=[^\]\r\n]+\]/.test(content))return;
       var data=new FormData();data.append('widget_content',content);data.append('csrf_token',String(window.MJD_CSRF_TOKEN||''));
       fetch(window.MJD_COMPONENT_PREVIEW_URL,{method:'POST',body:data,credentials:'same-origin'}).then(function(r){return r.json()}).then(function(result){
         var target=preview.querySelector('[data-widget-field="'+cssEsc(field.id)+'"]');
-        if(target&&result.ok)target.innerHTML=result.html;
+        if(generation !== previewGeneration) return;
+        if(target&&result.ok)mountPreviewMarkup(target,result.html);
         else if(target)target.textContent='Widget preview is unavailable.';
-      }).catch(function(){var target=preview.querySelector('[data-widget-field="'+cssEsc(field.id)+'"]');if(target)target.textContent='Widget preview could not load.'});
+      }).catch(function(){if(generation !== previewGeneration) return;var target=preview.querySelector('[data-widget-field="'+cssEsc(field.id)+'"]');if(target)target.textContent='Widget preview could not load.'});
     });
     fields.forEach(function (field) {
       var filename = String(field.label || '').trim();
@@ -482,17 +494,12 @@
           var current = preview.querySelector('[data-component-field="' + cssEsc(field.id) + '"]');
           var latest = byId(field.id);
           if (!current || !latest || String(latest.label || '').trim() !== filename) return;
-          current.innerHTML = result.html || '<div class="custom-component-error">Component preview is unavailable.</div>';
-          Array.prototype.forEach.call(current.querySelectorAll('script'), function (oldScript) {
-            var script = document.createElement('script');
-            if (oldScript.src) script.src = oldScript.src;
-            else script.textContent = oldScript.textContent;
-            oldScript.parentNode.replaceChild(script, oldScript);
-          });
+          if (generation !== previewGeneration) return;
+          mountPreviewMarkup(current, result.html || '<div class="custom-component-error">Component preview is unavailable.</div>');
         })
         .catch(function () {
           var current = preview.querySelector('[data-component-field="' + cssEsc(field.id) + '"]');
-          if (current) current.textContent = 'The PHP component preview could not be loaded.';
+          if (generation === previewGeneration && current) current.textContent = 'The PHP component preview could not be loaded.';
         });
     });
   }

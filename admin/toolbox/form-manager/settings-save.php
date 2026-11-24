@@ -70,12 +70,16 @@ if ($pk && !in_array($pk, $primaryColumns, true)) {
 }
 
 $s = [
+    'label_position' => ($_POST['label_position'] ?? '') === 'left' ? 'left' : 'above',
+    'label_placeholder' => !empty($_POST['label_placeholder']) ? 1 : 0,
+    'input_class' => trim((string) ($_POST['input_class'] ?? 'form-control')),
     'after_submit' => ($_POST['after_submit'] ?? 'message') === 'redirect' ? 'redirect' : 'message',
     'success_message' => trim((string) ($_POST['success_message'] ?? '')),
     'redirect_url' => trim((string) ($_POST['redirect_url'] ?? '')),
     'target_selector' => trim((string) ($_POST['target_selector'] ?? '#main-content')),
     'email_user' => !empty($_POST['email_user']) ? 1 : 0,
     'email_template' => trim((string) ($_POST['email_template'] ?? '')),
+    'email_template_admin' => trim((string) ($_POST['email_template_admin'] ?? '')),
     'email_admin' => !empty($_POST['email_admin']) ? 1 : 0,
     'admin_email' => trim((string) ($_POST['admin_email'] ?? '')),
     'form_element_id' => trim((string) ($_POST['form_element_id'] ?? '')),
@@ -92,7 +96,9 @@ try {
 
     $q = $pdo->prepare("
         UPDATE forms
-        SET form_table = ?,
+        SET form_title = ?,
+            email_template_admin = ?,
+            form_table = ?,
             table_index = ?,
             form_element_id = ?,
             form_class = ?,
@@ -107,6 +113,8 @@ try {
     ");
 
     $q->execute([
+        trim((string) ($_POST['form_title'] ?? $f['form_title'])) ?: $f['form_title'],
+        $s['email_template_admin'],
         $table,
         $pk,
         $s['form_element_id'],

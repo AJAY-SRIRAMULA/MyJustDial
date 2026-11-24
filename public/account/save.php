@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../includes/member_forms.php';
+require_once __DIR__ . '/../../includes/form_destination.php';
 require_once __DIR__ . '/../../includes/custom_components.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -274,6 +275,8 @@ if ($errors) {
 
 try {
     $pdo->beginTransaction();
+    $destination = configuredFormDestination($pdo, $formName, 'users_data', 'user_id');
+    $alternateDestination = $destination[0] !== 'users_data';
 
     foreach ($savedFiles as $fieldName => $saved) {
         if (in_array($fieldName, $defaultFieldNames, true) && $fieldName === 'cv') {
@@ -329,7 +332,7 @@ try {
         $updatePhoto->execute([$filename, '/images/' . $filename, date('YmdHis'), '', '', $photoId]);
     }
 
-    if ($updates) {
+    if ($updates && !$alternateDestination) {
         $sets = [];
         $values = [];
         foreach ($updates as $column => $value) {
@@ -355,7 +358,11 @@ if (is_array($widgetSubmittedFields)) {
         $metaUpdates[$fieldName] = trim((string)$fieldValue);
     }
 }
-foreach ($metaUpdates as $key => $value) saveMemberMeta($pdo, $memberId, $key, $value);
+if ($alternateDestination) {
+    saveConfiguredMemberRecord($pdo, $destination, $memberId, $updates, $metaUpdates);
+} else {
+    foreach ($metaUpdates as $key => $value) saveMemberMeta($pdo, $memberId, $key, $value);
+}
     if ($section === 'listing' && $hasSpecialtyField && tableExists($pdo, 'rel_services')) {
         $serviceIds = $submitted['specialty_categories'] ?? [];
         if (!is_array($serviceIds)) $serviceIds = [];
@@ -402,6 +409,7 @@ foreach ($metaUpdates as $key => $value) saveMemberMeta($pdo, $memberId, $key, $
         }
         if (!empty($saved['temporary']) && is_file($saved['temporary'])) unlink($saved['temporary']);
     }
+    error_log('Member form save: ' . $exception->getMessage());
     flash('danger', 'Your changes could not be saved. Please try again.');
 }
 redirect('/public/account/' . $section . '.php' . ($isAdminSave ? '?admin_member=' . $memberId : ''));

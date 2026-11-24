@@ -59,7 +59,7 @@ if (!isset($s['table']) && isset($initialDestinations[$formName])) {
     $table = $initialDestinations[$formName];
 }
 
-if (str_ends_with($formName, '_custom')) {
+if (!isset($s['table']) && str_ends_with($formName, '_custom')) {
     $parentName = substr($formName, 0, -7);
 
     if (
@@ -97,7 +97,7 @@ if ($table && in_array($table, $tables, true)) {
 $pk = $s['primary_key'] ?? $form['table_index'];
 
 foreach ($cols as $c) {
-    if ($c['COLUMN_KEY'] === 'PRI') {
+    if (!$pk && $c['COLUMN_KEY'] === 'PRI') {
         $pk = $c['COLUMN_NAME'];
         break;
     }
@@ -143,20 +143,19 @@ $extraHead = '<link rel="stylesheet" href="' . e($config['base_url']) . '/assets
 require __DIR__ . '/../../../includes/header.php';
 ?>
 
-<div class="mjd-form-settings-page">
-    <div class="container-fluid" style="padding: 24px">
-        <div style="display: flex; justify-content: space-between">
-            <h2>Edit Form Settings</h2>
+<div class="mjd-form-settings-page" role="dialog" aria-modal="true" aria-label="Edit Form Editor">
+    <a class="settings-close" href="edit.php?id=<?=$id?>">× Close</a>
+    <div class="settings-dialog">
+        <div class="settings-header">
+            <h2>Edit Form Editor</h2>
 
-            <a class="btn btn-secondary" href="edit.php?id=<?=$id?>">
-                Back to Form Builder
-            </a>
+            <button class="settings-top-save" type="submit" form="mjd-settings-form">Save Changes</button>
         </div>
 
         <form
-            method="post"
+            id="mjd-settings-form" method="post"
             action="settings-save.php"
-            style="background: #fff; padding: 24px; border-radius: 10px"
+            class="settings-form"
         >
             <input
                 type="hidden"
@@ -170,17 +169,16 @@ require __DIR__ . '/../../../includes/header.php';
                 value="<?=$id?>"
             >
 
-            <div class="mb-3">
+            <div class="settings-scroll"><div class="mb-3">
                 <label>Form Name</label>
 
                 <input
-                    class="form-control"
-                    readonly
+                    class="form-control" name="form_title" required
                     value="<?=e($form['form_title'])?>"
                 >
             </div>
 
-            <div style="display: flex; gap: 8px; margin: 20px 0">
+            <div class="settings-tabs">
                 <button
                     type="button"
                     data-tab="submission"
@@ -271,7 +269,7 @@ require __DIR__ . '/../../../includes/header.php';
 
                             <option
                                 value="1"
-                                <?=!empty($s['email_user']) ? 'selected' : ''?>
+                                <?=!empty($s['email_user'] ?? $form['form_email_on']) ? 'selected' : ''?>
                             >
                                 On
                             </option>
@@ -305,7 +303,7 @@ require __DIR__ . '/../../../includes/header.php';
 
                             <option
                                 value="1"
-                                <?=!empty($s['email_admin']) ? 'selected' : ''?>
+                                <?=!empty($s['email_admin'] ?? $form['email_admin']) ? 'selected' : ''?>
                             >
                                 On
                             </option>
@@ -313,7 +311,9 @@ require __DIR__ . '/../../../includes/header.php';
                     </div>
 
                     <div class="col-md-6">
-                        <label>Admin Email</label>
+                        <label>Email Template to Send</label>
+                        <select class="form-control" name="email_template_admin"><option value="">Select template</option><?php foreach (array_unique(array_merge($templateValues, [(string)($s['email_template_admin'] ?? $form['email_template_admin'] ?? '')])) as $template): if ($template === '') continue; ?><option value="<?=e($template)?>" <?=($s['email_template_admin'] ?? $form['email_template_admin']) === $template ? 'selected' : ''?>><?=e($template)?></option><?php endforeach ?></select>
+                    </div></div><div class="row mt-3"><div class="col-md-6"><label>Enter Admin Email Addresses to Notify</label>
 
                         <input
                             class="form-control"
@@ -325,14 +325,16 @@ require __DIR__ . '/../../../includes/header.php';
             </div>
 
             <div data-panel="developer" hidden>
+                <div class="row"><div class="col-md-6"><label>Form System Name</label><input class="form-control" readonly value="<?=e($form['form_name'])?>"><small class="settings-note">Existing system name is protected to preserve shortcode and field mappings.</small></div></div>
                 <h4>Input Field Settings</h4>
 
                 <div class="row">
                     <div class="col-md-6">
                         <label>Field Label Position</label>
 
-                        <select class="form-control" disabled>
-                            <option>Labels Above Inputs</option>
+                        <select class="form-control" name="label_position">
+                            <option value="above">Labels Above Inputs</option>
+                            <option value="left" <?=($s['label_position'] ?? '') === 'left' ? 'selected' : ''?>>Labels Beside Inputs</option>
                         </select>
 
                         <small class="settings-note">
@@ -343,9 +345,7 @@ require __DIR__ . '/../../../includes/header.php';
                     <div class="col-md-6">
                         <label>Use Field Label as Placeholder Text?</label>
 
-                        <div class="settings-static-toggle">
-                            OFF
-                        </div>
+                        <label class="settings-switch"><input type="checkbox" name="label_placeholder" value="1" <?=!empty($s['label_placeholder']) ? 'checked' : ''?>><span></span></label>
 
                         <small class="settings-note">
                             Uses each field label inside the input as placeholder text.
@@ -355,12 +355,11 @@ require __DIR__ . '/../../../includes/header.php';
 
                 <div class="row mt-3">
                     <div class="col-md-6">
-                        <label>&lt;input&gt; Field CSS Classes</label>
+                        <label>&lt;input&gt; Field CSS Classes <span class="settings-optional">(optional)</span></label>
 
                         <input
                             class="form-control"
-                            value="form-control"
-                            readonly
+                            name="input_class" value="<?=e($s['input_class'] ?? 'form-control')?>"
                         >
 
                         <small class="settings-note">
@@ -377,17 +376,7 @@ require __DIR__ . '/../../../includes/header.php';
 
                 <div class="row">
                     <div class="col-md-6">
-                        <label>Form System Name</label>
-
-                        <input
-                            class="form-control"
-                            readonly
-                            value="<?=e($form['form_name'])?>"
-                        >
-                    </div>
-
-                    <div class="col-md-6">
-                        <label>Assign Unique ID</label>
+                        <label>&lt;form&gt; Assign Unique ID <span class="settings-optional">(optional)</span></label>
 
                         <input
                             class="form-control"
@@ -407,7 +396,7 @@ require __DIR__ . '/../../../includes/header.php';
 
                 <div class="row mt-3">
                     <div class="col-md-6">
-                        <label>&lt;form&gt; CSS Classes</label>
+                        <label>&lt;form&gt; CSS Classes <span class="settings-optional">(optional)</span></label>
 
                         <input
                             class="form-control"
@@ -425,7 +414,7 @@ require __DIR__ . '/../../../includes/header.php';
                     </div>
 
                     <div class="col-md-6">
-                        <label>&lt;form&gt; Inline Styles</label>
+                        <label>&lt;form&gt; Inline Styles <span class="settings-optional">(optional)</span></label>
 
                         <input
                             class="form-control"
@@ -471,7 +460,7 @@ require __DIR__ . '/../../../includes/header.php';
                         >
 
                         <small class="settings-note">
-                            The page element replaced after submission, e.g. #myform.
+                            Enter target ID that will be replaced when form is submitted.<strong class="settings-warning">Only works when Display Success Pop-Up Message is enabled. Example: #myform</strong>
                         </small>
                     </div>
                 </div>
@@ -497,7 +486,7 @@ require __DIR__ . '/../../../includes/header.php';
                                     <?=e($t)?>
                                 </option>
                             <?php endforeach ?>
-                        </select>
+                        </select><small class="settings-note"><strong class="settings-warning">ADVANCED SETTING:</strong> Only modify if familiar with database tables.</small>
                     </div>
 
                     <div class="col-md-6">
@@ -508,7 +497,7 @@ require __DIR__ . '/../../../includes/header.php';
                             id="settings-primary-key"
                             name="primary_key"
                         >
-                            <?php foreach ($cols as $c): ?>
+                            <?php foreach ($cols as $c): if ($c['COLUMN_KEY'] !== 'PRI') continue; ?>
                                 <option
                                     value="<?=e($c['COLUMN_NAME'])?>"
                                     <?=$pk === $c['COLUMN_NAME'] ? 'selected' : ''?>
@@ -517,7 +506,7 @@ require __DIR__ . '/../../../includes/header.php';
                                     <?=$c['COLUMN_KEY'] === 'PRI' ? '(Primary)' : ''?>
                                 </option>
                             <?php endforeach ?>
-                        </select>
+                        </select><small class="settings-note">Unique field identifier for this database table</small>
                     </div>
 
                     <div
@@ -527,16 +516,24 @@ require __DIR__ . '/../../../includes/header.php';
                     ></div>
                 </div>
 
-                <button class="btn btn-success mt-4" type="submit">
+                </div>
+            <div class="settings-footer"><button class="btn btn-success" type="submit">
                     Save Changes
-                </button>
+                </button></div>
             </form>
-        </div>
     </div>
 </div>
 
 <script>
 (function () {
+    document.querySelectorAll('.mjd-form-settings-page [data-panel] .row > [class*=col-]').forEach(col => {
+        const label = col.firstElementChild;
+        if (!label || label.tagName !== 'LABEL') return;
+        const body = document.createElement('div');
+        body.className = 'settings-field-body';
+        while (label.nextSibling) body.append(label.nextSibling);
+        col.append(body);
+    });
     const ts = document.querySelectorAll('[data-tab]');
     const ps = document.querySelectorAll('[data-panel]');
 
@@ -566,6 +563,8 @@ require __DIR__ . '/../../../includes/header.php';
         pk.innerHTML = '';
 
         const fd = new FormData();
+        const requestedTable = table.value;
+        document.querySelectorAll('button[form="mjd-settings-form"], #mjd-settings-form button[type="submit"]').forEach(b => b.disabled = true);
 
         fd.append('csrf_token', <?=json_encode(csrfToken())?>);
         fd.append('table', table.value);
@@ -579,6 +578,7 @@ require __DIR__ . '/../../../includes/header.php';
 
             const d = await r.json();
 
+            if (table.value !== requestedTable) return;
             if (!d.ok) {
                 throw new Error(d.message || 'Unable to load primary key');
             }
@@ -600,13 +600,12 @@ require __DIR__ . '/../../../includes/header.php';
 
                 status.textContent = d.message || 'No primary key detected.';
             }
+            document.querySelectorAll('button[form="mjd-settings-form"], #mjd-settings-form button[type="submit"]').forEach(b => b.disabled = false);
         } catch (e) {
             status.textContent = e.message;
         }
     });
 })();
 </script>
-
-</div>
 
 <?php require __DIR__ . '/../../../includes/footer.php'; ?>

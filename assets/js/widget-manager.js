@@ -319,7 +319,12 @@
           const response = await fetch('preview.php', { method: 'POST', body: payload, credentials: 'same-origin' });
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error(result.message || 'Preview could not be rendered.');
-          $('iframe', preview).srcdoc = result.document;
+          if (preview.open) preview.close();
+          const oldFrame = $('iframe', preview);
+          const frame = oldFrame.cloneNode(false);
+          frame.removeAttribute('src');
+          frame.srcdoc = result.document;
+          oldFrame.replaceWith(frame);
           preview.showModal();
         } catch (error) {
           notify(error.message || 'Preview could not be rendered.', true);
@@ -328,7 +333,7 @@
         }
       }
     }));
-    $('[data-close-preview]', preview)?.addEventListener('click', () => preview.close());
+    $('[data-close-preview]', preview)?.addEventListener('click', () => { if (preview.open) preview.close(); });
     show('widget_data');
   });
   if (editForm) {

@@ -35,5 +35,5 @@ require __DIR__ . '/../../../includes/header.php';
 <?php require __DIR__ . '/../../../includes/widget_code_editor.php'; ?>
 <label class="wm-type">Type of widget (optional) <select name="widget_type"><option value="Widget" <?= $widget['widget_type']==='Widget'?'selected':'' ?>>Widget (Default)</option><option value="Custom" <?= $widget['widget_type']==='Custom'?'selected':'' ?>>Custom</option></select></label>
 <label class="wm-type">Widget name <input name="widget_name" value="<?= e($widget['widget_name']) ?>" required maxlength="255"></label>
-</form></div><div class="wm-toast" id="widgetToast" role="status"></div><script src="<?= e($config['base_url']) ?>/assets/js/widget-manager.js"></script>
+</form></div><div class="wm-toast" id="widgetToast" role="status"></div><script src="<?= e($config['base_url']) ?>/assets/js/widget-manager.js?v=20261124-2"></script>
 <?php require __DIR__ . '/../../../includes/footer.php'; ?>

@@ -2,6 +2,8 @@
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/public_website.php';
 require __DIR__ . '/../includes/public_forms.php';
+require_once __DIR__ . '/../includes/form_destination.php';
+require_once __DIR__ . '/../includes/razorpay_test.php';
 
 $settings = getPublicWebsiteSettings($pdo);
 $baseUrl = $config['base_url'];
@@ -75,6 +77,7 @@ foreach ($signupFields as $field) {
         continue;
     }
 
+    if (!$isFreeSignup && ($fieldName === 'billing_cycle' || in_array(formFieldInternalType($fieldType), ['section','help_alert','submit'], true))) continue;
     $customFields[] = $field;
 }
 
@@ -144,6 +147,15 @@ function signupFieldLabel(array $field): string
 function renderSignupField(array $field): string
 {
     $name = trim((string)($field['field_name'] ?? ''));
+    if ($name === 'billing_cycle' && !$GLOBALS['isFreeSignup']) {
+        $plan = $GLOBALS['selectedPlan'];
+        $html = '<div class="account-field"><label for="billing-cycle">' . e(signupFieldLabel($field)) . ' (Razorpay test mode)</label><select name="billing_cycle" id="billing-cycle" required>';
+        foreach (['monthly', 'yearly'] as $cycle) {
+            if ((float)$plan[$cycle . '_amount'] <= 0) continue;
+            $html .= '<option value="' . $cycle . '"' . (strtolower((string)($_POST['billing_cycle'] ?? $field['default_value'] ?? 'monthly')) === $cycle ? ' selected' : '') . '>' . ucfirst($cycle) . ' — ₹' . e(number_format((float)$plan[$cycle . '_amount'], 2)) . '</option>';
+        }
+        return $html . '</select></div>';
+    }
     $type = formFieldInternalType((string)($field['field_type'] ?? 'text'));
     $label = signupFieldLabel($field);
     $required = !empty($field['field_required']);
@@ -276,6 +288,7 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
                 continue;
             }
             if (preg_match('/^\[widget=([^\]]+)\]$/', $content)) {
+                $html .= renderWidgetShortcodes($GLOBALS['pdo'], $content);
                 continue;
             }
             if ($content !== '' && str_contains($content, '<')) {
@@ -289,7 +302,7 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
             continue;
         }
         if ($type === 'honeypot') {
-            $html .= '<div class="public-form-honeypot" aria-hidden="true"><input type="text" name="extra_honeypot_' . (int)($field['field_id'] ?? 0) . '" tabindex="-1" autocomplete="off"></div>';
+            $html .= '<div class="public-form-honeypot" aria-hidden="true"><input type="hidden" name="extra_honeypot_' . (int)($field['field_id'] ?? 0) . '" tabindex="-1" autocomplete="off"></div>';
             continue;
         }
         if ($type === 'captcha') {
@@ -522,6 +535,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         try {
+            $verifiedPayment = $isFreeSignup ? null : razorpayVerifySignup($selectedPlan, $email);
             $pdo->beginTransaction();
 
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
@@ -599,13 +613,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            $destination = configuredFormDestination($pdo, (string)($signupForm['form_name'] ?? $signupShortcode), 'users_data', 'user_id');
+            if ($destination[0] !== 'users_data') {
+                saveConfiguredMemberRecord($pdo, $destination, $newUserId, array_merge($userDataValues, ['email' => $email, 'subscription_id' => (int)$selectedPlan['subscription_id'], 'user_consent' => $consentValue]), $metaValues);
+            }
+            if ($verifiedPayment) {
+                $paymentInsert = $pdo->prepare('INSERT INTO membership_test_payments (payment_id, order_id, user_id, subscription_id, amount_paise, billing_cycle) VALUES (?, ?, ?, ?, ?, ?)');
+                $paymentInsert->execute([$verifiedPayment['payment'], $verifiedPayment['order'], $newUserId, (int)$selectedPlan['subscription_id'], $verifiedPayment['amount'], $verifiedPayment['cycle']]);
+            }
             $pdo->commit();
+            if ($verifiedPayment) unset($_SESSION['razorpay_signup_orders'][$verifiedPayment['order']]);
             $success = true;
         } catch (Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
 
+            error_log('Signup destination: ' . $exception->getMessage());
             $errors[] = 'Your account could not be created. Please try again.';
         }
     }
@@ -669,13 +693,22 @@ $logoUrl = $settings['logo_url'];
 
             <?php if ($success): ?>
                 <div class="account-message success" role="status">
-                    Your profile has been created. Your account is awaiting activation.
+                    <?= $isFreeSignup ? 'Your profile has been created.' : 'Test payment verified. Your paid profile has been created.' ?>
                 </div>
             <?php else: ?>
                 <form id="membership-signup-form" method="post" enctype="multipart/form-data" action="<?= e($baseUrl) ?>/public/signup.php?plan_id=<?= (int)$selectedPlan['subscription_id'] ?>">
                     <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
                     <input type="hidden" name="plan_id" value="<?= (int)$selectedPlan['subscription_id'] ?>">
 
+                    <?php if (!$isFreeSignup): ?>
+                        <?php if (!in_array('billing_cycle', array_column($signupFields, 'field_name'), true)): ?>
+                            <?= renderSignupField(['field_name'=>'billing_cycle','field_text'=>'Billing Cycle','default_value'=>'monthly']) ?>
+                        <?php endif; ?>
+                        <?php foreach (['razorpay_order_id','razorpay_payment_id','razorpay_signature'] as $paymentField): ?>
+                            <input type="hidden" name="<?= e($paymentField) ?>" value="<?= e($_POST[$paymentField] ?? '') ?>">
+                        <?php endforeach; ?>
+                        <p id="payment-status" role="status"></p>
+                    <?php endif; ?>
                     <?php if ($signupForm): ?>
                         <?= renderFreeSignupForm($signupFields, $baseUrl) ?>
                     <?php else: ?>
@@ -769,5 +802,9 @@ $logoUrl = $settings['logo_url'];
             }
         }());
     </script>
+    <?php if (!$isFreeSignup && !$success): ?>
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script src="<?= e($baseUrl) ?>/assets/js/razorpay-signup.js"></script>
+    <?php endif; ?>
 </body>
 </html>

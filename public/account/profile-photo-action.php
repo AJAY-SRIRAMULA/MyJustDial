@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/bootstrap.php';
+require_once __DIR__ . '/../../includes/member_forms.php';
+require_once __DIR__ . '/../../includes/form_destination.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -137,6 +139,10 @@ try {
 
     $update = $pdo->prepare('UPDATE users_photo SET file = ?, original = ?, date_added = ?, resized = ?, error = ?, compliant = 0 WHERE photo_id = ? AND user_id = ? AND type = ?');
     $update->execute([$filename, '/images/' . $filename, date('YmdHis'), '', '', $photoId, $memberId, $imageType]);
+    $photoDestination = configuredFormDestination($pdo, resolveMemberFormName($pdo, 'member_profile_photo'), 'users_data', 'user_id');
+    if (!in_array($photoDestination[0], ['users_data', 'users_photo'], true)) {
+        saveConfiguredMemberRecord($pdo, $photoDestination, $memberId, [$imageType === 'photo' ? 'profile_photo' : 'profile_logo' => $filename, 'file' => $filename, 'original' => '/images/' . $filename, 'type' => $imageType], []);
+    }
     $pdo->commit();
 
     if ($backupPath !== '' && is_file($backupPath)) @unlink($backupPath);

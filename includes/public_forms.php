@@ -244,12 +244,15 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         return '<div class="contact-form-alert contact-form-alert-error">The Contact Form is not available. Please create or enable the form in Admin → Toolbox → Form Manager.</div>';
     }
 
+    $settingsQuery = $pdo->prepare("SELECT value FROM users_meta WHERE `database`='forms' AND database_id=? AND `key`='form_settings_json' LIMIT 1");
+    $settingsQuery->execute([$form['form_id']]);
+    $settings = json_decode((string)$settingsQuery->fetchColumn(), true) ?: [];
     $action = e($_SERVER['REQUEST_URI'] ?? '');
-    $html = '<form class="public-dynamic-form" method="post" action="' . $action . '">';
+    $html = '<form id="' . e($form['form_element_id'] ?: $form['form_name']) . '" class="public-dynamic-form ' . e($form['form_class'] ?? '') . '" style="' . e($form['form_style'] ?? '') . '" method="post" action="' . $action . '">';
 
     $html .= '<input type="hidden" name="public_form_shortcode" value="' . e(preg_match('/^\\[form=([a-zA-Z0-9\_-]+)\\]$/', trim($shortcode), $shortcodeMatches) ? $shortcodeMatches[1] : $shortcode) . '">';
     $html .= '<input type="hidden" name="csrf_token" value="' . e($csrfToken) . '">';
-    $html .= '<div class="public-form-honeypot" aria-hidden="true"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off"></label></div>';
+    $html .= '<div class="public-form-honeypot" aria-hidden="true"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off" data-fake-filler-ignore="true" hidden></label></div>';
 
     foreach ($form['fields'] as $field) {
         if (($field['field_input_view'] ?? '1') === '0') {
@@ -260,7 +263,7 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $name = trim((string)$field['field_name']);
         $label = trim((string)$field['field_text']);
         $required = !empty($field['field_required']);
-        $placeholder = (string)$field['field_placeholder'];
+        $placeholder = !empty($settings['label_placeholder']) ? ($label ?: $name) : (string)$field['field_placeholder'];
         $value = (string)$field['default_value'];
         $options = publicFormFieldOptions($field);
 
@@ -319,16 +322,16 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $requiredMark = $required ? '<span class="public-form-required" aria-hidden="true">*</span>' : '';
         $help = trim((string)$field['field_sdesc']);
 
-        $html .= '<div class="public-form-field">';
+        $html .= '<div class="public-form-field"' . (($settings['label_position'] ?? '') === 'left' ? ' style="display:grid;grid-template-columns: minmax(100px, 1fr) 2fr;gap:10px;align-items:center"' : '') . '>';
 
         if ($type !== 'hidden') {
             $html .= '<label for="' . e($id) . '">' . e($label ?: $name) . $requiredMark . '</label>';
         }
 
         if ($type === 'textarea' || in_array($type, ['richtext', 'richtext_image', 'richtext_elements', 'richtext_media'], true)) {
-            $html .= '<textarea id="' . e($id) . '" name="' . $inputName . '" placeholder="' . e($placeholder) . '"' . $requiredAttribute . '>' . e($value) . '</textarea>';
+            $html .= '<textarea class="' . e($settings['input_class'] ?? '') . '" id="' . e($id) . '" name="' . $inputName . '" placeholder="' . e($placeholder) . '"' . $requiredAttribute . '>' . e($value) . '</textarea>';
         } elseif ($type === 'select' || $type === 'country' || $type === 'state' || $type === 'top_category' || $type === 'years') {
-            $html .= '<select id="' . e($id) . '" name="' . $inputName . '"' . $requiredAttribute . '>';
+            $html .= '<select class="' . e($settings['input_class'] ?? '') . '" id="' . e($id) . '" name="' . $inputName . '"' . $requiredAttribute . '>';
             $html .= '<option value="">' . e($placeholder ?: 'Select an option') . '</option>';
 
             foreach ($options as $option) {
@@ -368,7 +371,7 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
                 default => 'text'
             };
 
-            $html .= '<input id="' . e($id) . '" type="' . e($inputType) . '" name="' . $inputName . '" value="' . e($value) . '" placeholder="' . e($placeholder) . '"' . $requiredAttribute . '>';
+            $html .= '<input class="' . e($settings['input_class'] ?? '') . '" id="' . e($id) . '" type="' . e($inputType) . '" name="' . $inputName . '" value="' . e($value) . '" placeholder="' . e($placeholder) . '"' . $requiredAttribute . '>';
         }
 
         if ($help !== '') {
@@ -712,8 +715,11 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             );
             $columnQuery->execute([$destinationTable]);
             $destinationColumns = $columnQuery->fetchAll(PDO::FETCH_ASSOC);
-            $insertData = $values;
+            $insertData = array_diff_key($values, array_fill_keys(array_column($customValues, 'key'), true));
             $insertData += [
+                'inquiry_ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 40),
+                'inquiry_user_id' => 0, 'inquiry_status' => 'New', 'inquiry_archived' => 0,
+                'inquiry_notes' => '', 'user_consent' => '',
                 'email' => $emailValue, 'inquiry_email' => $emailValue,
                 'name' => $nameValue, 'yourname' => $nameValue, 'full_name' => $nameValue,
                 'phone' => $phoneValue, 'comments' => $commentsValue, 'message' => $commentsValue,
@@ -775,14 +781,14 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             $inquiryId = $pdo->lastInsertId();
         }
 
-        if ($destinationTable === 'form_inquiries' && $customValues) {
+        if ($customValues) {
             if ($inquiryId === false || $inquiryId === '0' || $inquiryId === '') {
                 throw new RuntimeException('The inquiry ID could not be retrieved.');
             }
 
             $saveCustomValue = $pdo->prepare(
                 "INSERT INTO users_meta (`database`, database_id, `key`, `value`, date_added)
-                 VALUES ('form_inquiries', ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, ?)"
             );
 
             $dateAdded = date('YmdHis');
@@ -797,6 +803,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
                 }
 
                 $saveCustomValue->execute([
+                    $destinationTable,
                     $inquiryId,
                     $customValue['key'],
                     $storedValue,
@@ -811,6 +818,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             $pdo->rollBack();
         }
 
+        error_log('Public form submission failed: ' . $exception->getMessage());
         return ['ok' => false, 'message' => 'Your message could not be saved. Please try again.'];
     }
 
@@ -839,7 +847,7 @@ function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, s
     $html = '<form class="public-login-form" method="post" action="' . e($_SERVER['PHP_SELF'] ?? '') . '">';
     $html .= '<input type="hidden" name="public_form_shortcode" value="' . e($shortcodeKey) . '">';
     $html .= '<input type="hidden" name="csrf_token" value="' . e($csrfToken) . '">';
-    $html .= '<div class="public-form-honeypot" aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off"></label></div>';
+    $html .= '<div class="public-form-honeypot" aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off" data-fake-filler-ignore="true" hidden></label></div>';
 
     $submitLabel = 'Login Now';
 
