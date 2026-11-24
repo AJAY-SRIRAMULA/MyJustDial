@@ -122,6 +122,7 @@ $orderBy = [
 
 $sql = "SELECT u.user_id, u.first_name, u.last_name, u.email, u.company,
                u.phone_number, u.city, u.state_ln, u.country_ln, u.lat, u.lon,
+               u.website, u.facebook, u.twitter, u.linkedin, u.youtube, u.instagram, u.pinterest,
                u.active, u.signup_date, u.last_login, u.subscription_id, u.listing_type,
                (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
                s.subscription_name
@@ -146,6 +147,7 @@ require __DIR__ . '/../includes/header.php';
         <span class="members-total"><?= number_format($total) ?> Members</span>
     </div>
 
+    <div class="member-search-layout">
     <form class="member-search-panel" id="memberSearchForm" method="get">
         <input type="text" name="q" value="<?= e($q) ?>" placeholder="Search Name, ID, URL or Company">
         <select name="plan">
@@ -174,6 +176,20 @@ require __DIR__ . '/../includes/header.php';
         <button type="submit" class="member-search-button">Search Members</button>
         <a class="member-reset-button" href="<?= e($config['base_url']) ?>/admin/search-members.php">Reset</a>
     </form>
+    <aside class="member-search-actions">
+        <a class="member-add-new" href="<?= e($config['base_url']) ?>/public/signup.php"><i class="fa fa-user-plus"></i><span>ADD NEW MEMBER</span></a>
+        <a class="member-static-action" href="#"><i class="fa fa-refresh"></i><span>Sync Members with Google Maps</span></a>
+        <details class="member-list-actions">
+            <summary><i class="fa fa-folder-open"></i><span>List Actions</span><i class="fa fa-caret-down"></i></summary>
+            <div class="member-list-actions-menu">
+                <a href="#"><i class="fa fa-upload"></i> Import Members via CSV File</a>
+                <a href="#"><i class="fa fa-external-link"></i> Export List of Current Member Results</a>
+                <a href="#"><i class="fa fa-list"></i> Create Smart List from Current Results</a>
+            </div>
+        </details>
+        <a class="member-static-action member-bd-butler" href="#"><i class="fa fa-magic"></i><span>Ask BD Butler — Member Insights &amp; More</span></a>
+    </aside>
+    </div>
 
     <div class="members-results-meta">
         <span>Showing <?= $total ? $offset + 1 : 0 ?> – <?= min($offset + $perPage, $total) ?> of <?= number_format($total) ?> member results</span>
@@ -235,8 +251,11 @@ require __DIR__ . '/../includes/header.php';
                                 <a class="member-name" href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=details&id=<?= (int)$member['user_id'] ?>"><i class="fa fa-file-text-o"></i> <?= e($memberName ?: 'Unnamed Member') ?></a>
                                 <span class="member-kind"><i class="fa fa-user-circle-o"></i> <?= e(($member['listing_type'] ?? '') === 'Company' ? 'Company' : (($member['listing_type'] ?? '') === 'Individual' ? 'Individual' : '')) ?></span>
                             </div>
-                            <div><i class="fa fa-envelope-o"></i> <?= e($member['email']) ?></div>
-                            <?php if ($member['company']): ?><div><i class="fa fa-building-o"></i> <?= e($member['company']) ?><?php if ($member['phone_number']): ?> <span class="member-phone"><i class="fa fa-phone"></i> <?= e($member['phone_number']) ?></span><?php endif; ?></div><?php endif; ?>
+                            <?php if (!empty($member['email'])): ?><div><i class="fa fa-envelope-o"></i> <a class="member-contact-link" href="mailto:<?= e($member['email']) ?>"><?= e($member['email']) ?></a></div><?php endif; ?>
+                            <?php if ($member['company'] || $member['phone_number']): ?><div><?php if ($member['company']): ?><i class="fa fa-building-o"></i> <?= e($member['company']) ?><?php endif; ?><?php if ($member['phone_number']): ?> <span class="member-phone"><i class="fa fa-phone"></i> <a class="member-contact-link" href="tel:<?= e($member['phone_number']) ?>"><?= e($member['phone_number']) ?></a></span><?php endif; ?></div><?php endif; ?>
+                            <?php $memberSocials = [['website', 'fa-home', 'Website'], ['facebook', 'fa-facebook', 'Facebook'], ['twitter', 'fa-twitter', 'X'], ['linkedin', 'fa-linkedin', 'LinkedIn'], ['youtube', 'fa-youtube', 'YouTube'], ['instagram', 'fa-instagram', 'Instagram'], ['pinterest', 'fa-pinterest', 'Pinterest']]; ?>
+                            <?php $hasSocials = false; foreach ($memberSocials as $social) { if (!empty($member[$social[0]])) { $hasSocials = true; break; } } ?>
+                            <?php if ($hasSocials): ?><div class="member-social-links"><?php foreach ($memberSocials as $social): if (!empty($member[$social[0]])): ?><a href="<?= e(preg_match('~^https?://~i', (string)$member[$social[0]]) ? (string)$member[$social[0]] : 'https://' . (string)$member[$social[0]]) ?>" target="_blank" rel="noopener" title="<?= e($social[2]) ?>" aria-label="<?= e($social[2]) ?>"><i class="fa <?= e($social[1]) ?>"></i></a><?php endif; endforeach; ?></div><?php endif; ?>
                             <div><i class="fa fa-map-marker"></i> <?= e(implode(', ', array_filter([$member['city'], $member['state_ln'], $member['country_ln']]))) ?></div>
                         </div>
                         <details class="member-actions">

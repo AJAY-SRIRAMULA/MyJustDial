@@ -21,14 +21,45 @@ $flashMessage = getFlash();
         <?php require __DIR__ . '/sidebar.php'; ?>
         <main class="main-area">
             <header class="topbar">
-                <div class="topbar-left"><button class="mobile-menu" id="mobileMenu" type="button">☰</button><span class="site-switch">◉ &nbsp;Switch Website</span><select class="top-select">
-                        <option>All</option>
-                    </select>
-                    <div class="top-search-wrap"><input class="top-search" placeholder="Search Website..."><span>⌕</span></div>
+                <div class="topbar-left">
+                    <button class="mobile-menu" id="mobileMenu" type="button">☰</button>
+                    <span class="site-switch"><i class="fa fa-arrow-circle-left"></i> Switch Website</span>
+                    <div class="top-search-group">
+                        <button class="top-select" type="button" data-menu-toggle="search-category">All <i class="fa fa-chevron-down"></i></button>
+                        <div class="top-category-dropdown small-dropdown" data-menu="search-category">
+                            <?php foreach (['All', 'Members', 'Single Photo Posts', 'Multi Photo Posts', 'Reviews', 'Leads', 'Form Inquiries', 'Membership Plans', 'Widgets', 'Sidebars', 'Menus', 'Post Settings', 'Forms'] as $searchCategory): ?>
+                                <button type="button" class="top-category-option" data-category="<?= e($searchCategory) ?>"><?= e($searchCategory) ?></button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <div class="top-search-wrap"><input class="top-search" placeholder="Search Website..." aria-label="Search Website"><button class="top-search-submit" type="button" aria-label="Search"><i class="fa fa-search"></i></button></div>
                 </div>
-                <div class="topbar-right"><a class="quick-create" href="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/create.php">✦ &nbsp;Quick Create <span class="header-caret" aria-hidden="true"></span></a><a class="visit-site" href="<?= e($config['base_url']) ?>/public/index.php" target="_blank" rel="noopener">Visit Website ↗</a>
-                    <div class="account-menu"><button class="account-toggle" type="button" data-menu-toggle="account">◉ &nbsp;My Account <span class="header-caret" aria-hidden="true"></span></button>
-                        <div class="small-dropdown" data-menu="account"><a href="<?= e($config['base_url']) ?>/admin/logout.php">Log Out</a></div>
+                <div class="topbar-right">
+                    <div class="account-menu bd-butler-menu">
+                        <button class="quick-create" type="button" data-menu-toggle="bd-butler"><i class="fa fa-magic"></i> BD Butler <span class="header-caret" aria-hidden="true"></span></button>
+                        <div class="small-dropdown bd-butler-dropdown" data-menu="bd-butler">
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon purple"><i class="fa fa-magic"></i></span><span><strong>Ask BD Butler</strong><small>Chat, get answers, or edit with AI</small></span></a>
+                            <a href="<?= e($config['base_url']) ?>/admin/search-members.php"><span class="bd-menu-icon blue"><i class="fa fa-user-plus"></i></span><span><strong>Add New Member</strong><small>Set up a new member account</small></span></a>
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon pink"><i class="fa fa-paper-plane"></i></span><span><strong>Create Newsletter</strong><small>Send bulk email to members</small></span></a>
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon green"><i class="fa fa-calculator"></i></span><span><strong>Create Invoice</strong><small>Bill a member for payment</small></span></a>
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon purple"><i class="fa fa-pencil-square-o"></i></span><span><strong>Create Post</strong><small>Publish a new article or blog</small></span></a>
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon teal"><i class="fa fa-file-image-o"></i></span><span><strong>Create Web Page</strong><small>Build page with SEO content</small></span></a>
+                            <a href="#" aria-disabled="true"><span class="bd-menu-icon amber"><i class="fa fa-tag"></i></span><span><strong>Create Coupon Code</strong><small>Set up a discount code</small></span></a>
+                        </div>
+                    </div>
+                    <a class="visit-site" href="<?= e($config['base_url']) ?>/public/index.php" target="_blank" rel="noopener">Visit Website <i class="fa fa-external-link"></i></a>
+                    <div class="account-menu">
+                        <button class="account-toggle" type="button" data-menu-toggle="account"><i class="fa fa-user-circle-o"></i> My Account <span class="header-caret" aria-hidden="true"></span></button>
+                        <div class="small-dropdown account-dropdown" data-menu="account">
+                            <div class="account-dropdown-header"><i class="fa fa-user-circle-o"></i><span><small>Signed in as</small><strong><?= e($_SESSION['admin_name'] ?? $_SESSION['admin_email'] ?? 'Admin') ?></strong></span></div>
+                            <a href="<?= e($config['base_url']) ?>/admin/dashboard.php"><i class="fa fa-th-large"></i> View My Websites</a>
+                            <a href="#" aria-disabled="true"><i class="fa fa-life-ring"></i> View My Tickets</a>
+                            <a href="#" aria-disabled="true"><i class="fa fa-plus-circle"></i> Create New Ticket</a>
+                            <hr>
+                            <a href="#" aria-disabled="true"><i class="fa fa-gift"></i> Refer Friends &amp; Earn 50%</a>
+                            <hr>
+                            <a href="<?= e($config['base_url']) ?>/admin/logout.php"><i class="fa fa-sign-out"></i> Sign Out</a>
+                        </div>
                     </div>
                 </div>
             </header>

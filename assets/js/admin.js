@@ -360,3 +360,20 @@ if (applyBulkButton) {
         bulkForm.submit();
     });
 }
+
+(function () {
+    'use strict';
+    document.addEventListener('click', function (event) {
+        var categoryOption = event.target.closest('.top-category-option');
+        if (!categoryOption) return;
+        var categoryGroup = categoryOption.closest('.top-search-group');
+        var categoryToggle = categoryGroup ? categoryGroup.querySelector('.top-select') : null;
+        var categoryMenu = categoryGroup ? categoryGroup.querySelector('[data-menu="search-category"]') : null;
+        if (!categoryToggle || !categoryMenu) return;
+        categoryToggle.innerHTML = categoryOption.getAttribute('data-category') + ' <i class="fa fa-chevron-down"></i>';
+        categoryMenu.querySelectorAll('.top-category-option').forEach(function (option) {
+            option.classList.toggle('is-selected', option === categoryOption);
+        });
+        categoryMenu.classList.remove('is-open');
+    });
+})();
