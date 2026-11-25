@@ -19,8 +19,8 @@ $sidebarGroups = [
         'label' => 'My Members',
         'icon' => '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M2 20c.4-4 2.8-6 7-6s6.6 2 7 6H2ZM17 4a3.5 3.5 0 0 1 0 7M18 14c2.5.6 3.8 2.5 4 6h-4"/></svg>',
         'items' => [
-            ['label' => 'Search Members', 'url' => $config['base_url'] . '/admin/search-members.php', 'active' => $activeMenu === 'members'],
-            ['label' => 'Member Categories'],
+            ['label' => 'Search Members', 'url' => $config['base_url'] . '/admin/search-members.php', 'active' => $activeMenu === 'members' && basename($_SERVER['SCRIPT_NAME']) !== 'member-categories.php'],
+            ['label' => 'Member Categories', 'url' => $config['base_url'] . '/admin/member-categories.php', 'active' => basename($_SERVER['SCRIPT_NAME']) === 'member-categories.php'],
             ['label' => 'Smart Lists & Tags'],
             ['label' => 'Member Images'],
             ['label' => 'Import Members'],

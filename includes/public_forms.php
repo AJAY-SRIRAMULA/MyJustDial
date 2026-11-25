@@ -389,7 +389,8 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $html .= '</div>';
     }
 
-    $html .= '<button class="public-form-submit" type="submit">Send Message</button>';
+    $buttonLabel = match ($shortcode) { 'newsletter_modal_signup' => 'Subscribe Now', 'find_members' => 'Search Now', default => 'Send Message' };
+    $html .= '<button class="public-form-submit" type="submit">' . e($buttonLabel) . '</button>';
     $html .= '</form>';
 
     return $html;

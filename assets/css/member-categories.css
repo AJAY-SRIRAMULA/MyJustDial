@@ -1,0 +1,83 @@
+.cat-page{padding:26px;color:#182c40}.cat-banner{background:white;border:1px solid #ddd;border-left:4px solid #2467cb;border-radius:7px;padding:13px;margin-bottom:26px;width:fit-content}.cat-tabs{display:flex;gap:7px;align-items:center}.cat-tabs span{flex:1}.cat-tabs a{background:#dce4eb;padding:13px 22px;color:#526577;text-decoration:none;border:1px solid #cbd6e0}.cat-tabs a.selected{background:white;border-top:3px solid #2467cb;color:#182c40}.cat-page button,.cat-page dialog button{background:#2467cb;color:white;border:0;border-radius:5px;padding:11px 16px;cursor:pointer;font-weight:600}.cat-page .save{background:#008675}.cat-panel{background:white;padding:16px;box-shadow:0 2px 5px #0002}.cat-toolbar{display:flex;gap:5px;background:#233140;padding:12px;border-radius:8px 8px 0 0}.cat-toolbar form{margin-left:auto;display:flex;gap:8px}.cat-page input:not([type=checkbox]),.cat-page select,.cat-page textarea{border:1px solid #ddd;border-radius:7px;padding:11px;background:white;color:#182c40;min-width:0}.cat-panel table{width:100%;border-collapse:collapse;table-layout:fixed}.cat-panel th{background:#e7edf2;text-align:left;padding:14px}.cat-panel th:nth-child(1){width:5%}.cat-panel th:nth-child(2){width:10%}.cat-panel th:nth-child(3){width:46%}.cat-panel th:nth-child(4){width:20%}.cat-panel td{border:1px solid #e3e3e3;padding:16px;vertical-align:middle}.cat-panel tr:nth-child(even){background:#f7f8fa}.cat-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;clear:both}.cat-fields label{display:flex;flex-direction:column;font-size:12px;gap:5px}.cat-id{float:right}.cat-count{display:block;background:#f1f4f7;color:#2467cb;text-align:center;font-size:25px;padding:8px;text-decoration:none;border:1px solid #ddd}.cat-count small,.cat-panel td small{display:block;font-size:12px}.cat-panel details{position:relative;margin-top:8px}.cat-panel summary{cursor:pointer;background:#eef2f5;padding:8px}.cat-panel details a,.cat-panel details button{display:block;padding:8px}.cat-image{background:#f3f5fa;text-align:center;padding:18px;color:#657584;margin-bottom:5px}.cat-image img{max-width:100%;max-height:100px}.cat-panel textarea{width:100%;height:130px;box-sizing:border-box}.cat-wide{width:100%;font-size:25px;padding:16px!important}.cat-empty{text-align:center;padding:45px;background:#e7ebf3;color:#879bb2;font-size:24px}.cat-panel td:nth-child(4){text-align:center}dialog{border:1px solid #ddd;border-radius:8px;padding:24px}dialog::backdrop{background:#0007}
+
+.cat-global { float:right; position:relative; }
+.cat-global a { display:block; background:white; padding:10px; position:absolute; right:0; z-index:5; min-width:120px; }
+.cat-page-link { display:inline-block; padding:5px 10px; border:1px solid #ddd; margin-left:4px; }
+.cat-fields select { width:100%; padding:8px; border:1px solid #ccd3db; }
+
+.cat-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.cat-global { float:none; }
+.cat-global summary { cursor:pointer; background:#fff; border:1px solid #ccd3db; border-radius:5px; padding:12px 16px; font-weight:600; }
+.cat-global a { border:1px solid #ccd3db; box-shadow:0 3px 8px #0002; text-decoration:none; color:#182c40; }
+.cat-footer { display:flex; justify-content:space-between; align-items:center; padding:16px 0; gap:12px; flex-wrap:wrap; }
+.cat-page-link { text-decoration:none; color:#2467cb; border-radius:4px; }
+.cat-page-link[aria-current=page] { background:#2467cb; color:white; }
+
+/* Category manager reference layout; scoped to this page. */
+.page-content:has(> .cat-page) { max-width:none; padding:0; }
+.cat-page { padding:24px; }
+.cat-heading { border-bottom:1px solid #d8dce0; margin-bottom:14px; padding-bottom:12px; }
+.cat-banner { margin:0; padding:12px 16px; border-radius:7px; }
+.cat-tabs { align-items:stretch; }
+.cat-tabs a { font-weight:600; padding:12px 20px; }
+.cat-tabs button { align-self:center; }
+.cat-panel { padding:16px; }
+.cat-toolbar { padding:10px; }
+.cat-toolbar > button { background:transparent; border:1px solid #fff; }
+.cat-toolbar select, .cat-toolbar input { padding:9px 12px; }
+.cat-toolbar form select { max-width:210px; }
+.cat-panel th { padding:12px 14px; }
+.cat-panel th:nth-child(2), .cat-panel th:nth-child(4) { text-align:center; }
+.cat-panel td { padding:15px; }
+.cat-panel tbody tr:hover { background:#eff3f7; }
+.cat-fields { grid-template-columns:1fr 1fr; gap:14px 10px; }
+.cat-fields label { font-size:13px; }
+.cat-input-wrap { display:flex; align-items:center; gap:8px; }
+.cat-input-wrap input { width:100%; box-sizing:border-box; }
+.cat-field-sort_order, .cat-field-lead_price { border-top:1px solid #d7dce0; padding-top:12px; }
+.cat-field-sort_order input, .cat-field-lead_price input { width:54px; text-align:center; }
+.cat-field-sort_order { grid-column:1; }
+.cat-field-lead_price { grid-column:2; }
+.cat-id { font-weight:600; }
+.cat-count { padding:5px; border-radius:3px; }
+.cat-image { min-height:88px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:600; padding:10px; }
+.cat-panel textarea { font:inherit; height:120px; resize:vertical; }
+.cat-menu { position:relative; }
+.cat-row-menu { margin-top:10px; }
+.cat-page .cat-trigger { background:#f0f3f6; color:#182c40; border:1px solid #d3d9df; border-radius:5px; padding:9px 12px; white-space:nowrap; }
+.cat-row-menu .cat-trigger { width:100%; }
+.cat-dropdown { display:none; position:absolute; top:100%; right:0; min-width:165px; z-index:30; background:white; border:1px solid #d8dce0; border-radius:5px; box-shadow:0 8px 20px #0002; }
+.cat-global .cat-dropdown { min-width:235px; }
+.cat-menu:hover .cat-dropdown, .cat-menu:focus-within .cat-dropdown { display:block; }
+.cat-page .cat-dropdown a, .cat-page .cat-dropdown button { display:block; position:static; width:100%; box-sizing:border-box; text-align:left; padding:10px 13px; border:0; border-radius:0; background:white; color:#182c40; text-decoration:none; font-weight:500; box-shadow:none; }
+.cat-page .cat-dropdown a:hover, .cat-page .cat-dropdown button:hover { background:#edf2f7; }
+.cat-page .cat-dropdown .cat-danger { color:#c90018; border-top:1px solid #ddd; }
+@media(max-width:1100px) { .cat-page { padding:12px; } .cat-toolbar { flex-wrap:wrap; } .cat-tabs { flex-wrap:wrap; } .cat-panel td { padding:8px; } }
+
+/* Top-level bulk category creation dialog. */
+#cat-add.cat-add-top {
+    width: min(74vw, 1500px);
+    max-width: calc(100vw - 32px);
+    max-height: 86vh;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: #f3f6f9;
+    color: #263d50;
+    overflow: visible;
+}
+#cat-add.cat-add-top::backdrop { background: rgba(0, 0, 0, .78); }
+.cat-add-header {
+    background: linear-gradient(105deg, #008da6, #30485b);
+    padding: 16px 26px;
+    border-radius: 12px 12px 0 0;
+    color: white;
+}
+.cat-add-header h2 { margin: 0; font-size: 24px; font-weight: 700; }
+.cat-add-body { padding: 24px 20px 16px; max-height: 76vh; overflow-y: auto; box-sizing: border-box; }
+.cat-add-alert { display: inline-block; margin: 0 0 20px; padding: 12px 14px; background: white; border: 1px solid #d4d4d4; border-left: 4px solid #2467cb; border-radius: 8px; color: #60758a; font-size: 18px; }
+.cat-add-body textarea { display: block; width: 100%; height: 49vh; min-height: 160px; box-sizing: border-box; padding: 14px 18px; border: 1px solid #b9c9d6; border-radius: 9px; background: white; font: inherit; font-size: 17px; resize: vertical; }
+.cat-add-body textarea:focus { outline: none; border-color: #70baff; box-shadow: 0 0 8px #75bfff88; }
+.cat-add-save { display: block; width: 100%; margin-top: 25px; padding: 16px; border: 0; border-radius: 8px; background: #008675; color: white; font-size: clamp(20px, 1.8vw, 34px); font-weight: 700; cursor: pointer; }
+.cat-add-close { position: fixed; top: 0; right: 8px; padding: 12px 16px; border: 0; border-radius: 0 0 12px 12px; background: #cf2506; color: white; font-size: 22px; cursor: pointer; }
+@media (max-width: 700px) { #cat-add.cat-add-top { width: calc(100vw - 32px); } .cat-add-alert { font-size: 15px; } .cat-add-header h2 { font-size: 20px; } }

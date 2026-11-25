@@ -1,0 +1,34 @@
+.profile-page .profile-main { padding-bottom: 55px; }
+.profile-crumb { font-size: 12px; color: #888; padding: 7px 0 28px; }
+.profile-crumb a { color: inherit; }
+.profile-listing-layout, .profile-message-layout { display: grid; gap: 26px; align-items: start; }
+.profile-listing-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 23.2%); }
+.profile-message-layout { grid-template-columns: minmax(0, 23.2%) minmax(0, 1fr); }
+.profile-hero { display: flex; gap: 20px; align-items: center; margin-bottom: 14px; }
+.profile-avatar { width: 22%; aspect-ratio: 1; object-fit: cover; border-radius: 50%; display: block; }
+.profile-identity { flex: 1; min-width: 0; }
+.profile-identity h1 { font-size: 32px; margin: 0 0 14px; }
+.profile-identity p { margin: 0 0 16px; }
+.profile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+.profile-blue, .profile-dark { display: block; border: 0; border-radius: 10px; padding: 11px 12px; color: white !important; text-align: center; text-decoration: none; font: inherit; cursor: pointer; background: #006eae; width: 100%; box-sizing: border-box; }
+.profile-dark { background: #282828; }
+.profile-box, .profile-connection { background: #f8f8f8; border: 1px solid #e8e9eb; border-radius: 12px; padding: 19px; }
+.profile-box { margin-bottom: 24px; box-shadow: 0 4px 5px #0002; }
+.profile-box h2 { font-size: 18px; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid #ececec; }
+.profile-connection { padding: 12px; }
+.profile-connection a { background: #282828; color: white; border-radius: 14px; padding: 4px 8px; font-size: 11px; }
+.profile-contact-form { display: grid; gap: 12px; }
+.profile-contact-form input, .profile-contact-form select, .profile-contact-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #d2d8df; background: white; border-radius: 7px; padding: 10px; font: inherit; font-size: 12px; color: #333; }
+.profile-contact-form textarea { min-height: 80px; resize: vertical; }
+.profile-share div { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.profile-share a, .profile-share button { background: #0866c6; color: white; border: 0; border-radius: 6px; padding: 6px; font-size: 11px; cursor: pointer; }
+.profile-share a:nth-child(3), .profile-share button { background: #282828; }
+.profile-box p a { color: #2879b9; }
+.profile-back .profile-avatar { width: 83%; margin: 0 auto 8px; }
+.profile-message-panel { padding: 0; overflow: hidden; }
+.profile-message-panel h2 { background: #282828; color: white; padding: 17px; margin: 0; }
+.profile-message-panel form { padding: 20px; gap: 14px; }
+.profile-message-panel textarea { min-height: 88px; }
+.profile-message-panel .profile-blue { margin-top: 12px; }
+.public-member-section { margin-top: 24px; }
+@media (max-width: 750px) { .profile-listing-layout, .profile-message-layout { grid-template-columns: 1fr; } .profile-actions { gap: 8px; } .profile-identity h1 { font-size: 24px; } }
