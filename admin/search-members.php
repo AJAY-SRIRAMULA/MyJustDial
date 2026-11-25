@@ -124,7 +124,8 @@ $sql = "SELECT u.user_id, u.first_name, u.last_name, u.email, u.company,
                u.phone_number, u.city, u.state_ln, u.country_ln, u.lat, u.lon,
                u.website, u.facebook, u.twitter, u.linkedin, u.youtube, u.instagram, u.pinterest,
                u.active, u.signup_date, u.last_login, u.subscription_id, u.listing_type,
-               (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
+               (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type IN ('photo','logo') ORDER BY (p.type = 'photo') DESC, p.photo_id DESC LIMIT 1) AS profile_photo,
+               (SELECT p.original FROM users_photo p WHERE p.user_id = u.user_id AND p.type IN ('photo','logo') ORDER BY (p.type = 'photo') DESC, p.photo_id DESC LIMIT 1) AS profile_original,
                s.subscription_name
         FROM users_data u
         LEFT JOIN subscription_types s ON s.subscription_id = u.subscription_id
@@ -233,13 +234,13 @@ require __DIR__ . '/../includes/header.php';
                 $lastLoginDate = $member['last_login'] ? DateTime::createFromFormat('YmdHis', (string)$member['last_login']) : false;
                 $joined = $joinedDate ? $joinedDate->format('M j, Y, g:i a') : '—';
                 $lastLogin = $lastLoginDate ? $lastLoginDate->format('M j, Y, g:i a') : '—';
-                $profileImage = trim((string)($member['profile_photo'] ?? ''));
+                $profileImage = memberPhotoUrl((string)($member['profile_photo'] ?? ''), (string)($member['profile_original'] ?? ''));
                 ?>
                 <tr class="<?= (int)$member['active'] === 2 ? '' : 'member-inactive' ?>">
                     <td class="member-check"><input type="checkbox" name="member_ids[]" value="<?= (int)$member['user_id'] ?>" aria-label="Select <?= e($memberName) ?>" form="bulkMemberForm"></td>
                     <td class="member-status">
                         <?php if ($profileImage !== ''): ?>
-                            <img src="<?= e($profileImage) ?>" alt="" onerror="this.style.display='none'">
+                            <img src="<?= e($profileImage) ?>" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="member-avatar" style="display:none"><i class="fa fa-user"></i></span>
                         <?php else: ?>
                             <span class="member-avatar"><i class="fa fa-user"></i></span>
                         <?php endif; ?>
@@ -323,10 +324,44 @@ document.getElementById('selectMembers')?.addEventListener('change', function ()
         checkbox.checked = document.getElementById('selectMembers').checked;
     });
 });
-document.addEventListener('click', function (event) {
-    document.querySelectorAll('.member-actions[open]').forEach(function (menu) {
-        if (!menu.contains(event.target)) menu.removeAttribute('open');
+const memberMenus = Array.from(document.querySelectorAll('.member-actions'));
+function openMemberMenu(menu) {
+    memberMenus.forEach(other => { if (other !== menu) other.open = false; });
+    menu.open = true;
+    const trigger = menu.querySelector('summary').getBoundingClientRect();
+    const panel = menu.querySelector('.member-actions-menu');
+    const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
+    const fitsLeft = trigger.left >= width + 8;
+    const fitsRight = window.innerWidth - trigger.right >= width + 8;
+    const left = fitsLeft ? trigger.left - width : fitsRight ? trigger.right : Math.max(8, Math.min(trigger.left, window.innerWidth - width - 8));
+    const top = fitsLeft || fitsRight ? trigger.top : (trigger.bottom + height <= window.innerHeight - 8 ? trigger.bottom : trigger.top - height);
+    panel.style.left = left + 'px';
+    panel.style.top = Math.max(8, Math.min(top, window.innerHeight - height - 8)) + 'px';
+}
+memberMenus.forEach(menu => {
+    const summary = menu.querySelector('summary');
+    let pinned = false;
+    menu.addEventListener('mouseenter', () => {
+        if (matchMedia('(hover: hover) and (pointer: fine)').matches) openMemberMenu(menu);
     });
+    menu.addEventListener('mouseleave', () => { if (!pinned) menu.open = false; });
+    summary.addEventListener('click', event => {
+        event.preventDefault();
+        if (pinned && menu.open) { menu.open = false; pinned = false; }
+        else { openMemberMenu(menu); pinned = true; }
+    });
+    menu.addEventListener('toggle', () => { if (!menu.open) pinned = false; });
 });
+document.addEventListener('click', event => {
+    memberMenus.forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
+});
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') memberMenus.forEach(menu => { menu.open = false; });
+});
+window.addEventListener('resize', () => memberMenus.forEach(menu => { menu.open = false; }));
+window.addEventListener('scroll', event => {
+    if (!event.target.closest?.('.member-actions-menu')) memberMenus.forEach(menu => { menu.open = false; });
+}, true);
 </script>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

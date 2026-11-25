@@ -91,7 +91,7 @@ try {
     $pdo->beginTransaction();
 
     $check = $pdo->prepare(
-        "SELECT form_name, form_action_type
+        "SELECT form_name, form_action_type, short_code
          FROM forms
          WHERE form_id = ? AND form_action_type <> 'default'
          FOR UPDATE"
@@ -123,9 +123,23 @@ try {
         $publicAlias = (string)($aliasQuery->fetchColumn() ?: '');
     }
 
-    if ($publicAlias === '') {
+    $isMemberContact = $oldName === 'member_contact_details';
+    if (tableExists($pdo, 'users_meta')) {
+        $identity = $pdo->prepare("SELECT 1 FROM users_meta WHERE `database` = 'forms' AND database_id = ? AND `key` = 'member_form_seeded' AND value = 'member_contact_details' LIMIT 1");
+        $identity->execute([$id]);
+        $isMemberContact = $isMemberContact || (bool)$identity->fetchColumn();
+        if ($isMemberContact) {
+            $pdo->prepare("DELETE FROM users_meta WHERE `database` = 'forms' AND database_id = ? AND `key` = 'public_shortcode_contact_form'")->execute([$id]);
+        }
+    }
+    if ($isMemberContact) {
+        $publicAlias = '';
+        $variable = $oldName;
+    }
+
+    if ($publicAlias === '' && !$isMemberContact) {
         $oldNameLower = strtolower($oldName);
-        if (str_contains($oldNameLower, 'contact') || str_contains($oldNameLower, 'nxt_wave')) {
+        if (preg_match('/^(?:contact_form|nxt_wave_form)(?:_custom(?:_\d+)?)?$/', $oldNameLower)) {
             $publicAlias = 'contact_form';
         } elseif (str_contains($oldNameLower, 'login')) {
             $publicAlias = 'member_login';
@@ -152,6 +166,10 @@ try {
     $savedShortcode = $publicAlias !== ''
         ? '[form=' . $publicAlias . ']'
         : '[form=' . $variable . ']';
+
+    if ($isMemberContact && !empty($existingForm['short_code']) && $existingForm['short_code'] !== '[form=contact_form]') {
+        $savedShortcode = (string)$existingForm['short_code'];
+    }
 
     $stmt = $pdo->prepare(
         'UPDATE forms

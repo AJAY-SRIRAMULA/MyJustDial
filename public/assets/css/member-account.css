@@ -264,3 +264,5 @@
     margin: 20px 0 0;
 }
 
+
+.mjd-profile-image-frame [hidden] { display: none !important; }

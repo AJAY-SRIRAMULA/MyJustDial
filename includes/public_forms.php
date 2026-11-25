@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/form_fields.php';
+require_once __DIR__ . '/recaptcha.php';
 require_once __DIR__ . '/custom_components.php';
 require_once __DIR__ . '/widgets.php';
 
@@ -23,12 +24,17 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
 
     if (isset($publicAliases[$shortcode]) && tableExists($pdo, 'users_meta')) {
         $mapping = $pdo->prepare(
-            "SELECT database_id
-             FROM users_meta
-             WHERE `database` = 'forms'
-             AND `key` = ?
-             AND `value` = ?
-             ORDER BY database_id DESC
+            "SELECT m.database_id
+             FROM users_meta m
+             INNER JOIN forms f ON f.form_id = m.database_id
+             WHERE m.`database` = 'forms'
+             AND m.`key` = ?
+             AND m.`value` = ?
+             AND (m.`key` <> 'public_shortcode_contact_form' OR (
+                 f.form_name NOT LIKE 'member\_contact\_details%'
+                 AND NOT EXISTS (SELECT 1 FROM users_meta identity_meta WHERE identity_meta.`database` = 'forms' AND identity_meta.database_id = f.form_id AND identity_meta.`key` = 'member_form_seeded' AND identity_meta.value = 'member_contact_details')
+             ))
+             ORDER BY m.database_id DESC
              LIMIT 1"
         );
 
@@ -72,7 +78,8 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
         }
 
         if ($shortcode === 'contact_form') {
-            $conditions[] = "(form_title LIKE '%Contact%' AND form_action_type <> 'default')";
+            $conditions = ['form_name IN (?, ?, ?)'];
+            $params = $candidates;
         } elseif ($shortcode === 'member_login') {
             $conditions[] = "(form_title LIKE '%Login%' AND form_action_type <> 'default')";
         }
@@ -103,7 +110,7 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
     if (!$form) {
         if ($shortcode === 'contact_form') {
             $fallbackNames = ['nxt_wave_form', 'contact_form'];
-            $fallbackTitle = '%Contact%';
+            $fallbackTitle = '';
         } elseif ($shortcode === 'member_login') {
             $fallbackNames = ['member_login', 'login'];
             $fallbackTitle = '%Login%';
@@ -267,7 +274,8 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $value = (string)$field['default_value'];
         $options = publicFormFieldOptions($field);
 
-        if (in_array($type, ['submit', 'honeypot', 'captcha'], true)) {
+        if ($type === 'captcha') { $html .= renderConfiguredCaptcha($pdo); continue; }
+        if (in_array($type, ['submit', 'honeypot'], true)) {
             continue;
         }
 
@@ -407,6 +415,9 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
         return ['ok' => false, 'message' => 'This form is currently unavailable.'];
     }
 
+    $captchaError = configuredCaptchaError($pdo, $form['fields']);
+    if ($captchaError !== '') return ['ok' => false, 'message' => $captchaError];
+
     $destinationTable = trim((string)($form['form_table'] ?? 'form_inquiries'));
     if ($destinationTable === '') {
         $destinationTable = 'form_inquiries';
@@ -542,7 +553,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
                 continue;
             }
 
-            if ($type === 'tel' && !preg_match('/^[0-9+().\\\s-]{5,30}$/', $rawValue)) {
+            if (in_array($type, ['tel', 'phone_country'], true) && !validFormPhone($rawValue)) {
                 $errors[] = 'Enter a valid phone number.';
                 continue;
             }
@@ -887,7 +898,7 @@ function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, s
         }
 
         if ($type === 'captcha') {
-            $html .= '<div class="login-captcha"><label><input type="checkbox" disabled> I’m not a robot (Google reCAPTCHA)</label></div>';
+            $html .= renderConfiguredCaptcha($pdo);
             continue;
         }
 
@@ -1038,6 +1049,8 @@ function processPublicLoginSubmission(PDO $pdo, string $shortcode): array
         return ['ok' => false, 'message' => 'The Member Login Form is currently unavailable.'];
     }
 
+    $captchaError = configuredCaptchaError($pdo, $form['fields']);
+    if ($captchaError !== '') return ['ok' => false, 'message' => $captchaError];
     $hasEmailField = false;
     $hasPasswordField = false;
 

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../includes/member_forms.php';
 require_once __DIR__ . '/../../includes/form_fields.php';
+require_once __DIR__ . '/../../includes/recaptcha.php';
 require_once __DIR__ . '/../../includes/custom_components.php';
 
 $isAdminPreview = !empty($_SESSION['admin_id']) && isset($_GET['admin_member']);
@@ -43,6 +44,7 @@ $pageTitle = $sectionTitles[$section] ?? 'My Dashboard';
 $memberName = trim($member['first_name'] . ' ' . $member['last_name']);
 $profileImage = memberFieldValue($pdo, $member, 'profile_photo');
 $member['profile_photo_url'] = $profileImage;
+$member['profile_logo_url'] = memberFieldValue($pdo, $member, 'profile_logo');
 $progress = 75;
 
 function memberAccountHeader(array $member, string $section, array $config, bool $isAdminPreview): void
@@ -84,9 +86,9 @@ function memberAccountHeader(array $member, string $section, array $config, bool
     <header class="member-site-header">
         <a class="member-brand" href="<?= e($base) ?>/public/index.php"><span class="member-brand-icon"><i class="fa fa-user-o"></i></span><span><strong>Brilliant Directories Demo</strong><small>The All-In-One Business Search Directory Theme</small></span></a>
         <details class="member-welcome-menu">
-            <summary><span class="member-welcome-avatar"><?php if (!empty($member['profile_photo_url'])): ?><img src="<?= e($member['profile_photo_url']) ?>" alt=""><?php else: ?><i class="fa fa-user"></i><?php endif; ?></span> Welcome, <?= e((string)$member['first_name']) ?> <i class="fa fa-angle-down"></i></summary>
+            <summary><span class="member-welcome-avatar" data-account-logo><?php if (!empty($member['profile_logo_url'])): ?><img src="<?= e($member['profile_logo_url']) ?>" alt=""><?php else: ?><i class="fa fa-user"></i><?php endif; ?></span> Welcome, <?= e((string)$member['first_name']) ?> <i class="fa fa-angle-down"></i></summary>
             <div class="member-welcome-dropdown">
-                <?php if (!empty($member['profile_photo_url'])): ?><img class="member-dropdown-avatar" src="<?= e($member['profile_photo_url']) ?>" alt="Profile photo"><?php else: ?><span class="member-dropdown-avatar member-avatar-placeholder"><i class="fa fa-user"></i></span><?php endif; ?>
+                <?php if (!empty($member['profile_logo_url'])): ?><img data-account-dropdown-logo class="member-dropdown-avatar" src="<?= e($member['profile_logo_url']) ?>" alt="Profile logo"><?php else: ?><span data-account-dropdown-logo class="member-dropdown-avatar member-avatar-placeholder"><i class="fa fa-user"></i></span><?php endif; ?>
                 <strong><?= e($memberName) ?></strong>
                 <small>Status: <b>Active</b></small>
                 <small>Plan: <b><?= e((string)($member['subscription_name'] ?? 'Membership')) ?></b></small>
@@ -100,7 +102,7 @@ function memberAccountHeader(array $member, string $section, array $config, bool
         <aside class="member-account-sidebar">
             <div class="member-profile-card">
                 <strong><?= e($memberName) ?></strong>
-                <?php if (!empty($member['profile_photo_url'])): ?><img class="member-profile-avatar" src="<?= e($member['profile_photo_url']) ?>" alt="Profile photo"><?php else: ?><span class="member-profile-avatar"><i class="fa fa-user"></i></span><?php endif; ?>
+                <?php if (!empty($member['profile_photo_url'])): ?><img data-account-photo class="member-profile-avatar" src="<?= e($member['profile_photo_url']) ?>" alt="Profile photo"><?php else: ?><span data-account-photo class="member-profile-avatar"><i class="fa fa-user"></i></span><?php endif; ?>
                 <a class="view-public-listing" href="<?= e($publicListingUrl) ?>">View Public Listing <i class="fa fa-external-link"></i></a>
                 <b>Member ID #<?= (int)$member['user_id'] ?></b>
                 <small>Plan: <?= e((string)($member['subscription_name'] ?? 'Membership')) ?></small>
@@ -161,6 +163,25 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
     $fields = $pdo->prepare('SELECT * FROM form_fields WHERE form_name = ? ORDER BY field_order, field_id');
     $fields->execute([$formName]);
     $configuredFields = $fields->fetchAll();
+    require_once __DIR__ . '/../../includes/form_destination.php';
+    $destinationRecord = null;
+    $destinationMeta = [];
+    try {
+        [$destinationTable, $destinationKey, $destinationColumns] = configuredFormDestination($pdo, $formName, 'users_data', 'user_id');
+        if ($destinationTable !== 'users_data' && in_array('user_id', $destinationColumns, true)) {
+            $recordQuery = $pdo->prepare("SELECT * FROM `$destinationTable` WHERE user_id = ? LIMIT 2");
+            $recordQuery->execute([(int)$member['user_id']]);
+            $records = $recordQuery->fetchAll(PDO::FETCH_ASSOC);
+            if (count($records) === 1) {
+                $destinationRecord = $records[0];
+                $metaQuery = $pdo->prepare('SELECT `key`, value FROM users_meta WHERE `database` = ? AND database_id = ? ORDER BY meta_id');
+                $metaQuery->execute([$destinationTable, $destinationRecord[$destinationKey]]);
+                $destinationMeta = $metaQuery->fetchAll(PDO::FETCH_KEY_PAIR);
+            }
+        }
+    } catch (Throwable $error) {
+        error_log('Member form destination: ' . $error->getMessage());
+    }
     $aboutHeadingFieldId = 0;
     if ($section === 'about') {
         foreach ($configuredFields as $configuredField) {
@@ -207,6 +228,7 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                 }
                 continue;
             }
+            if ($type === 'captcha') { echo renderConfiguredCaptcha($pdo); continue; }
             if ($type === 'submit') continue;
             if ($type === 'html') {
                 require_once __DIR__ . '/../../includes/widgets.php';
@@ -246,6 +268,10 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                 continue;
             }
             $value = memberFieldValue($pdo, $member, $name, $section);
+            if ($destinationRecord !== null) {
+                if (in_array($name, memberDefaultFieldNames($section), true) && array_key_exists($name, $destinationRecord)) $value = (string)$destinationRecord[$name];
+                elseif (array_key_exists($name, $destinationMeta)) $value = (string)$destinationMeta[$name];
+            }
             if ($value === '') $value = (string)($field['default_value'] ?? '');
             $options = preg_split('/\r\n|\r|\n/', (string)$field['field_options']);
             if (!$field['field_options'] && in_array($type, ['country','state','top_category','years'], true)) {
@@ -329,7 +355,7 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                         <input class="<?= e($inputClass) ?>" id="field-<?= e($name) ?>" type="file" name="uploads[<?= e($name) ?>]" accept="<?= e($accept) ?>"<?= $required ?>>
                         <?php if ($value !== ''): ?><small>Current file: <a href="<?= e($value) ?>" target="_blank" rel="noopener">View uploaded file</a></small><?php endif; ?>
                     <?php else: ?>
-                        <?php $inputType = in_array($type, ['email','url','number','date','datetime-local','tel','password','price'], true) ? ($type === 'price' ? 'number' : $type) : 'text'; ?>
+                        <?php $inputType = in_array($type, ['email','url','number','date','datetime-local','tel','phone_country','password','price'], true) ? ($type === 'price' ? 'number' : ($type === 'phone_country' ? 'tel' : $type)) : 'text'; ?>
                         <input class="<?= e($inputClass) ?>" id="field-<?= e($name) ?>" type="<?= e($inputType) ?>" name="fields[<?= e($name) ?>]" value="<?= $type === 'password' ? '' : e($value) ?>" placeholder="<?= e($placeholder) ?>"<?= $required ?>>
                     <?php endif; ?>
                     <?php if ($help !== ''): ?><small><?= e($help) ?></small><?php endif; ?>
@@ -438,11 +464,19 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                         var commandNames = ['bold','italic','underline','strikethrough','fontColor','fontBackgroundColor','alignment','numberedList','bulletedList','insertTable','link','undo','redo'];
                         var missingCommands = commandNames.filter(function (name) { return !instance.commands.get(name); });
                         if (missingCommands.length) console.warn('CKEditor commands unavailable:', missingCommands.join(', '));
+                        var lastSynced = value.value;
                         function syncValue() {
                             value.value = instance.getData();
+                            lastSynced = value.value;
                         }
+                        function syncAutofill() {
+                            if (value.value !== lastSynced) instance.setData(value.value);
+                        }
+                        value.addEventListener('input', syncAutofill);
+                        value.addEventListener('change', syncAutofill);
                         instance.model.document.on('change:data', syncValue);
                         form.addEventListener('submit', function () {
+                            syncAutofill();
                             syncValue();
                         }, true);
                         wrapper.dataset.ckeditorReady = '1';
@@ -495,8 +529,12 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
             content.addEventListener('input', function () {
                 if (editor.dataset.ckeditorReady !== '1') value.value = content.innerHTML;
             });
+            var lastContent = content.innerHTML;
+            value.addEventListener('input', function () {
+                if (editor.dataset.ckeditorReady !== '1') { content.textContent = value.value; lastContent = content.innerHTML; }
+            });
             form.addEventListener('submit', function () {
-                if (editor.dataset.ckeditorReady !== '1') value.value = content.innerHTML;
+                if (editor.dataset.ckeditorReady !== '1' && content.innerHTML !== lastContent) value.value = content.innerHTML;
             }, true);
         });
         </script>

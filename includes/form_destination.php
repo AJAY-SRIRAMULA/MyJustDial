@@ -24,6 +24,8 @@ function saveConfiguredMemberRecord(PDO $pdo, array $destination, int $memberId,
     if (!in_array('user_id', $columns, true) && $key !== 'user_id') {
         throw new RuntimeException('Member destination requires a user_id ownership column.');
     }
+    $missing = array_diff(array_keys($values), $columns);
+    if ($missing) throw new RuntimeException('Destination is missing configured default fields: ' . implode(', ', $missing));
     $values = array_intersect_key($values, array_flip($columns));
     unset($values[$key]);
     $values['user_id'] = $memberId;

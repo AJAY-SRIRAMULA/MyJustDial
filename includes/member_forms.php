@@ -151,6 +151,13 @@ function ensureMemberForms(PDO $pdo): void
             $formId = (int)$pdo->lastInsertId();
         }
 
+        if ($name === 'member_contact_details') {
+            $pdo->prepare("UPDATE forms SET short_code = CONCAT('[form=', form_name, ']') WHERE form_id = ? AND short_code = '[form=contact_form]'")->execute([$formId]);
+            if (tableExists($pdo, 'users_meta')) {
+                $pdo->prepare("DELETE FROM users_meta WHERE `database` = 'forms' AND database_id = ? AND `key` = 'public_shortcode_contact_form'")->execute([$formId]);
+            }
+        }
+
         if ($name === 'member_login') {
             $loginType = $pdo->prepare("UPDATE forms SET form_action_type = 'login', short_code = '[form=member_login]' WHERE form_id = ?");
             $loginType->execute([$formId]);

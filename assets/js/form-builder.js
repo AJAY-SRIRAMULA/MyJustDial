@@ -2,7 +2,7 @@
   'use strict';
 
   var list = document.getElementById('fbList');
-  if (!list) {
+  if (!list && !document.getElementById('fbPreview')) {
     return;
   }
 
@@ -425,7 +425,7 @@
     }
     if (t === 'captcha') {
       return '<div class="pv-field"><div class="pv-note">'
-        + '<input type="checkbox" disabled> I\u2019m not a robot (Google reCaptcha)'
+        + '<input type="checkbox" aria-label="CAPTCHA preview"> I\u2019m not a robot (preview only)'
         + '</div></div>';
     }
     if (t === 'html') {
@@ -502,6 +502,12 @@
           if (generation === previewGeneration && current) current.textContent = 'The PHP component preview could not be loaded.';
         });
     });
+  }
+
+  if (!list) {
+    fields = (window.MJD_INITIAL_FIELDS || []).map(normalize);
+    renderPreview();
+    return;
   }
 
   list.addEventListener('input', function (event) {

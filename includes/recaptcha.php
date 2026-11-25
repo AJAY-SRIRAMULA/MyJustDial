@@ -109,3 +109,27 @@ function verifyGoogleRecaptchaV2(
 
     return $verifiedHost !== '';
 }
+
+function renderConfiguredCaptcha(PDO $pdo): string
+{
+    $keys = getGoogleRecaptchaCredentials($pdo);
+    if ($keys['site_key'] === '' || $keys['secret_key'] === '') {
+        return '<p role="alert">CAPTCHA is not configured. Please contact the site administrator.</p>';
+    }
+    return '<div class="g-recaptcha" data-sitekey="' . e($keys['site_key']) . '"></div>'
+        . '<script src="https://www.google.com/recaptcha/api.js" async defer></script>';
+}
+
+function configuredCaptchaError(PDO $pdo, array $fields): string
+{
+    foreach ($fields as $field) {
+        if ((string)($field['field_input_view'] ?? '1') === '0' || formFieldInternalType((string)$field['field_type']) !== 'captcha') continue;
+        $keys = getGoogleRecaptchaCredentials($pdo);
+        $token = $_POST['g-recaptcha-response'] ?? '';
+        if (!is_string($token) || !verifyGoogleRecaptchaV2($token, $keys['secret_key'], (string)($_SERVER['HTTP_HOST'] ?? ''))) {
+            return 'Please complete the CAPTCHA verification. If unavailable, contact the site administrator.';
+        }
+        break;
+    }
+    return '';
+}

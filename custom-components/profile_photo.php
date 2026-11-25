@@ -15,15 +15,17 @@ if (!$componentPreview && $componentPdo instanceof PDO) {
     $logoRecord = $logoQuery->fetch(PDO::FETCH_ASSOC) ?: [];
     foreach ([['record' => $photoRecord, 'target' => 'photo'], ['record' => $logoRecord, 'target' => 'logo']] as $imageItem) {
         $file = trim((string)($imageItem['record']['file'] ?? ''));
-        $url = preg_match('~^https?://~i', $file) ? $file : ($file !== '' ? $componentBaseUrl . '/images/' . rawurlencode(basename($file)) : '');
+        require_once __DIR__ . '/../includes/member_forms.php';
+        $url = memberPhotoUrl($file, (string)($imageItem['record']['original'] ?? ''));
         if ($imageItem['target'] === 'photo') $componentPhoto = $url;
         else $componentLogo = $url;
     }
 }
+$componentAdminMember = !empty($_SESSION['admin_id']) && isset($_GET['admin_member']) ? (int)$componentMember['user_id'] : 0;
 $componentCsrf = (string)($componentContext['csrf'] ?? '');
 $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.php';
 ?>
-<div class="mjd-profile-upload" data-profile-upload data-preview="<?= $componentPreview ? '1' : '0' ?>" data-endpoint="<?= e($componentEndpoint) ?>" data-csrf="<?= e($componentCsrf) ?>">
+<div class="mjd-profile-upload" data-profile-upload data-admin-member="<?= $componentAdminMember ?>" data-preview="<?= $componentPreview ? '1' : '0' ?>" data-endpoint="<?= e($componentEndpoint) ?>" data-csrf="<?= e($componentCsrf) ?>">
     <h2>Upload Profile Photo</h2>
     <div class="mjd-profile-accepted">ACCEPTED FORMATS: JPG, GIF, PNG &amp; WEBP</div>
     <div class="mjd-profile-upload-grid">
@@ -60,6 +62,27 @@ $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.p
         function say(text, isError) {
             message.textContent = text;
             message.style.color = isError ? '#b42318' : '#067647';
+        }
+
+        function syncAccountImage(type, url) {
+            if (type === 'logo') {
+                document.querySelectorAll('[data-account-logo]').forEach(function (avatar) {
+                    var child = document.createElement(url ? 'img' : 'i');
+                    if (url) { child.src = url; child.alt = ''; }
+                    else child.className = 'fa fa-user';
+                    avatar.replaceChildren(child);
+                });
+            }
+            var selector = type === 'logo' ? '[data-account-dropdown-logo]' : '[data-account-photo]';
+            document.querySelectorAll(selector).forEach(function (avatar) {
+                var next = document.createElement(url ? 'img' : 'span');
+                var className = type === 'logo' ? 'member-dropdown-avatar' : 'member-profile-avatar';
+                next.className = className + (!url && type === 'logo' ? ' member-avatar-placeholder' : '');
+                next.setAttribute(type === 'logo' ? 'data-account-dropdown-logo' : 'data-account-photo', '');
+                if (url) { next.src = url; next.alt = type === 'logo' ? 'Profile logo' : 'Profile photo'; }
+                else { var icon = document.createElement('i'); icon.className = 'fa fa-user'; next.appendChild(icon); }
+                avatar.replaceWith(next);
+            });
         }
 
         root.querySelectorAll('[data-change]').forEach(function (button) {
@@ -100,6 +123,7 @@ $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.p
                 var data = new FormData();
                 data.append('csrf_token', root.dataset.csrf);
                 data.append('image_type', type);
+                if (Number(root.dataset.adminMember) > 0) data.append('admin_member', root.dataset.adminMember);
                 data.append('image', file);
                 say('Uploading image...', false);
 
@@ -112,6 +136,7 @@ $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.p
                     var result = await response.json();
                     if (!response.ok || !result.ok) throw new Error(result.message || 'The image could not be uploaded.');
                     preview.src = result.url;
+                    syncAccountImage(type, result.url);
                     deleteButton.disabled = false;
                     say(result.message || 'Image updated successfully.', false);
                 } catch (error) {
@@ -139,6 +164,7 @@ $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.p
                 var data = new FormData();
                 data.append('csrf_token', root.dataset.csrf);
                 data.append('image_type', type);
+                if (Number(root.dataset.adminMember) > 0) data.append('admin_member', root.dataset.adminMember);
                 data.append('action', 'delete');
                 say('Deleting image...', false);
                 try {
@@ -154,6 +180,7 @@ $componentEndpoint = $componentBaseUrl . '/public/account/profile-photo-action.p
                     image.removeAttribute('src');
                     root.querySelector('[data-image-empty="' + type + '"]').hidden = false;
                     button.disabled = true;
+                    syncAccountImage(type, '');
                     say(result.message || 'Image deleted successfully.', false);
                 } catch (error) {
                     say(error.message || 'The image could not be deleted. Please try again.', true);

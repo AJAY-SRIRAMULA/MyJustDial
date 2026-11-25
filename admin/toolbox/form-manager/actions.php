@@ -189,9 +189,7 @@ if ($action === 'delete') {
         $sourceTitle = strtolower((string)$form['form_title']);
 
         if (
-            str_contains($sourceName, 'contact')
-            || str_contains($sourceTitle, 'contact')
-            || str_contains($sourceName, 'nxt_wave')
+            preg_match('/^(?:contact_form|nxt_wave_form)(?:_custom(?:_\d+)?)?$/', $sourceName)
         ) {
             $publicAlias = 'contact_form';
         } elseif (
@@ -230,6 +228,10 @@ if ($action === 'delete') {
         'about'
     ], true)) {
         $memberFormCanonical = (string)$form['form_name'];
+    }
+
+    if ($memberFormCanonical === 'member_contact_details') {
+        $publicAlias = '';
     }
 
     $customShortcode = $publicAlias !== ''

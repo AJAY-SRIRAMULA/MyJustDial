@@ -61,6 +61,7 @@ foreach ($signupFields as $field) {
         $hasReferralWidget = $hasReferralWidget || $fieldName === 'referral_input';
     }
 
+    if (in_array(formFieldInternalType($fieldType), ['captcha','honeypot','section','help_alert','submit','html'], true)) continue;
     if ($fieldName === '' || ($field['field_input_view'] ?? '1') === '0') {
         continue;
     }
@@ -233,8 +234,8 @@ function renderSignupField(array $field): string
         }
         $html .= '</div>';
     } else {
-        $inputTypes = ['text', 'email', 'tel', 'number', 'date', 'datetime-local', 'url', 'password', 'file', 'price'];
-        $inputType = in_array($type, $inputTypes, true) ? ($type === 'price' ? 'number' : $type) : 'text';
+        $inputTypes = ['text', 'email', 'tel', 'number', 'date', 'datetime-local', 'url', 'password', 'file', 'price', 'phone_country'];
+        $inputType = in_array($type, $inputTypes, true) ? ($type === 'price' ? 'number' : ($type === 'phone_country' ? 'tel' : $type)) : 'text';
         if ($inputType === 'password') {
             $html .= '<div class="account-password-wrap">';
             $html .= '<input class="' . e($inputClass) . '" id="' . e($id) . '" name="' . $inputName . '" type="password" placeholder="' . e($placeholder) . '"' . $requiredAttribute . ' autocomplete="new-password">';
@@ -306,6 +307,7 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
             continue;
         }
         if ($type === 'captcha') {
+            $html .= renderConfiguredCaptcha($GLOBALS['pdo']);
             continue;
         }
         if ($type === 'html' || $type === 'section' || $type === 'help_alert' || $type === 'hidden') {
@@ -337,6 +339,8 @@ $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
+    $captchaError = configuredCaptchaError($pdo, $signupFields);
+    if ($captchaError !== '') $errors[] = $captchaError;
 
     $email = trim((string)($_POST['email'] ?? ''));
     $confirmEmail = trim((string)($_POST['email_confirm'] ?? ''));
@@ -463,7 +467,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        if ($fieldValue !== '' && $fieldType === 'tel' && !preg_match('/^[0-9+().\s-]{5,30}$/', $fieldValue)) {
+        if ($fieldValue !== '' && in_array($fieldType, ['tel', 'phone_country'], true) && !validFormPhone($fieldValue)) {
             $errors[] = 'Enter a valid phone number for ' . signupFieldLabel($field) . '.';
             continue;
         }
@@ -593,11 +597,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateUser->execute($updateValues);
             }
 
+            $destination = configuredFormDestination($pdo, (string)($signupForm['form_name'] ?? $signupShortcode), 'users_data', 'user_id');
             if ($metaValues && !tableExists($pdo, 'users_meta')) {
                 throw new RuntimeException('The users_meta table is unavailable.');
             }
 
-            if ($metaValues) {
+            if ($metaValues && $destination[0] === 'users_data') {
                 $saveMeta = $pdo->prepare(
                     "INSERT INTO users_meta (`database`, database_id, `key`, value, date_added)
                      VALUES ('users_data', ?, ?, ?, ?)"
@@ -613,7 +618,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $destination = configuredFormDestination($pdo, (string)($signupForm['form_name'] ?? $signupShortcode), 'users_data', 'user_id');
             if ($destination[0] !== 'users_data') {
                 saveConfiguredMemberRecord($pdo, $destination, $newUserId, array_merge($userDataValues, ['email' => $email, 'subscription_id' => (int)$selectedPlan['subscription_id'], 'user_consent' => $consentValue]), $metaValues);
             }

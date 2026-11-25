@@ -257,3 +257,11 @@ function loadBuilderLists(PDO $pdo): array
 
     return $lists;
 }
+
+function validFormPhone(string $value): bool
+{
+    $value = trim($value);
+    if (!preg_match('/^\+?[0-9().\s-]+$/u', $value)) return false;
+    $digits = preg_replace('/[^0-9]/', '', $value);
+    return strlen($digits) >= 5 && strlen($digits) <= 15;
+}

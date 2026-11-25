@@ -69,7 +69,9 @@ if (($_POST['action'] ?? '') === 'delete') {
     $delete = $pdo->prepare('DELETE FROM users_photo WHERE photo_id = ? AND user_id = ? AND type = ?');
     $delete->execute([(int)$existing['photo_id'], $memberId, $imageType]);
     $oldPath = $imageDirectory . basename((string)$existing['file']);
-    if (is_file($oldPath)) unlink($oldPath);
+    $references = $pdo->prepare('SELECT COUNT(*) FROM users_photo WHERE file = ?');
+    $references->execute([$existing['file']]);
+    if (!(int)$references->fetchColumn() && is_file($oldPath)) unlink($oldPath);
     profilePhotoResponse(true, 'Image deleted successfully.');
 }
 
@@ -118,7 +120,7 @@ try {
     }
 
     $filename = $imageType === 'photo'
-        ? 'pimage-' . $photoId . '.' . $extension
+        ? 'pimage-' . $photoId . '-' . bin2hex(random_bytes(8)) . '.' . $extension
         : 'member-logo-' . bin2hex(random_bytes(12)) . '.' . $extension;
     $destination = $imageDirectory . $filename;
     $temporary = $imageDirectory . 'upload-' . bin2hex(random_bytes(12)) . '.' . $extension;
@@ -148,7 +150,9 @@ try {
     if ($backupPath !== '' && is_file($backupPath)) @unlink($backupPath);
     if ($existing) {
         $oldFilename = basename((string)$existing['file']);
-        if ($oldFilename !== $filename && is_file($imageDirectory . $oldFilename)) unlink($imageDirectory . $oldFilename);
+        $references = $pdo->prepare('SELECT COUNT(*) FROM users_photo WHERE file = ?');
+        $references->execute([$existing['file']]);
+        if (!(int)$references->fetchColumn() && $oldFilename !== $filename && is_file($imageDirectory . $oldFilename)) unlink($imageDirectory . $oldFilename);
     }
     profilePhotoResponse(true, $imageType === 'photo' ? 'Profile photo updated successfully.' : 'Profile logo updated successfully.', ['url' => rtrim((string)$config['base_url'], '/') . '/images/' . rawurlencode($filename)]);
 } catch (Throwable $error) {

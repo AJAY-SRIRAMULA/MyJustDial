@@ -341,7 +341,7 @@ $renderField = static function (array $field) use ($fieldData, $sanitizeCustomHt
 
     if ($type === 'captcha') {
         return '<div class="captcha-placeholder">'
-            . '<input type="checkbox" disabled> '
+            . '<input type="checkbox" aria-label="CAPTCHA preview"> '
             . 'I am not a robot (preview only)'
             . '</div>';
     }

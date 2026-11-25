@@ -12,7 +12,7 @@ $sidebarGroups = [
             ['label' => 'Manage Add-Ons'],
             ['label' => 'Activity Tracker'],
             ['label' => 'Visit My Website'],
-            ['label' => 'Refresh Live Site']
+            ['label' => 'Refresh Live Site', 'url' => '#refresh-live-site']
         ]
     ],
     'members' => [

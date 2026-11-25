@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../includes/member_forms.php';
+require_once __DIR__ . '/../../includes/recaptcha.php';
 require_once __DIR__ . '/../../includes/form_destination.php';
 require_once __DIR__ . '/../../includes/custom_components.php';
 
@@ -63,6 +64,8 @@ $columns = [
 $updates = [];
 $metaUpdates = [];
 $errors = [];
+$captchaError = configuredCaptchaError($pdo, $configured);
+if ($captchaError !== '') $errors[] = $captchaError;
 $defaultFieldNames = memberDefaultFieldNames($section);
 
 foreach ($configured as $field) {
@@ -70,7 +73,7 @@ foreach ($configured as $field) {
     $type = formFieldInternalType((string)$field['field_type']);
     if ((string)($field['field_input_view'] ?? '1') === '0') continue;
     if ($type === 'html' && $name === 'widget_bootstrap_theme_form_agree_terms_conditions' && empty($submitted['terms_accepted'])) $errors[] = 'Accept the terms and conditions to continue.';
-    if ($name === '' || in_array($type, ['submit','html','section'], true)) continue;
+    if ($name === '' || in_array($type, ['submit','html','section','captcha','honeypot','help_alert'], true)) continue;
     if ($type === 'file') {
         if ((int)$field['field_required'] && empty($_FILES['uploads']['name'][$name])) $errors[] = 'Choose a file for ' . $name . '.';
         continue;
@@ -84,6 +87,7 @@ foreach ($configured as $field) {
     if ((int)$field['field_required'] && $value === '') $errors[] = 'Complete the required field: ' . $name;
     if ($name === 'email' && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) $errors[] = 'Enter a valid email address.';
     if ($type === 'url' && $value !== '' && !filter_var($value, FILTER_VALIDATE_URL)) $errors[] = 'Enter a valid website URL.';
+    if (in_array($type, ['tel','phone_country'], true) && $value !== '' && !validFormPhone($value)) $errors[] = 'Enter a valid phone number for ' . $name . '.';
     if ($type === 'number' && $value !== '' && !is_numeric($value)) $errors[] = 'Enter a valid number for ' . $name . '.';
 
     if (in_array($type, ['select','radio','checkbox_group','country','state','top_category','years'], true) && $value !== '') {
@@ -251,7 +255,7 @@ foreach ($uploadRules as $fieldName => $rules) {
         continue;
     }
     $filename = bin2hex(random_bytes(18)) . '.' . $extension;
-    $destinationDir = in_array($fieldName, ['profile_photo', 'profile_logo'], true) ? $imageDir : $uploadDir;
+    $destinationDir = in_array($rules['type'], ['photo', 'logo'], true) ? $imageDir : $uploadDir;
     $temporaryName = 'upload-' . bin2hex(random_bytes(12)) . '.' . $extension;
     if (!move_uploaded_file($file['tmp_name'], $destinationDir . $temporaryName)) {
         $errors[] = 'The file could not be saved.';
@@ -315,7 +319,7 @@ try {
             $oldFile = '';
         }
         $filename = $saved['type'] === 'photo'
-            ? 'pimage-' . $photoId . '.' . $saved['extension']
+            ? 'pimage-' . $photoId . '-' . bin2hex(random_bytes(8)) . '.' . $saved['extension']
             : 'member-logo-' . bin2hex(random_bytes(12)) . '.' . $saved['extension'];
         $finalPath = $imageDir . $filename;
         $backupPath = '';
@@ -394,7 +398,9 @@ if ($alternateDestination) {
         if (!empty($saved['backup']) && is_file($saved['backup'])) unlink($saved['backup']);
         if (!empty($saved['old_file']) && !empty($saved['filename']) && $saved['old_file'] !== $saved['filename']) {
             $oldPath = $imageDir . basename($saved['old_file']);
-            if (is_file($oldPath)) unlink($oldPath);
+            $references = $pdo->prepare('SELECT COUNT(*) FROM users_photo WHERE file = ?');
+            $references->execute([$saved['old_file']]);
+            if (!(int)$references->fetchColumn() && is_file($oldPath)) unlink($oldPath);
         }
     }
     flash('success', 'Your ' . $section . ' information has been saved.');

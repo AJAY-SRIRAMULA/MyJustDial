@@ -80,25 +80,6 @@ if ($type === 'general') {
     }));
 }
 
-$formPreviews = [];
-
-if ($custom) {
-    $formNames = array_column($custom, 'form_name');
-    $placeholders = implode(',', array_fill(0, count($formNames), '?'));
-
-    $previewQuery = $pdo->prepare(
-        "SELECT form_name, field_text, field_type, field_required
-         FROM form_fields
-         WHERE form_name IN ($placeholders)
-         ORDER BY field_order, field_id"
-    );
-    $previewQuery->execute($formNames);
-
-    foreach ($previewQuery->fetchAll() as $previewField) {
-        $formPreviews[$previewField['form_name']][] = $previewField;
-    }
-}
-
 require __DIR__ . '/../../../includes/header.php';
 ?>
 <div class="form-manager-page">
@@ -236,19 +217,9 @@ require __DIR__ . '/../../../includes/header.php';
 <a href="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/actions.php?action=toggle&id=<?= (int)$form['form_id'] ?>&token=<?= e(csrfToken()) ?>"><?= $enabled?'◉ &nbsp;Disable':'◉ &nbsp;Enable' ?></a>
 <a class="danger-action" href="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/actions.php?action=delete&id=<?= (int)$form['form_id'] ?>&token=<?= e(csrfToken()) ?>" onclick="return confirm('Delete this form and its fields?')">✖ &nbsp;Delete</a></div></div></td>
 <td>
-<a class="fm-preview-thumb" href="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/preview.php?id=<?= (int)$form['form_id'] ?>" aria-label="Preview <?= e($displayTitle) ?>">
-    <strong><?= e($displayTitle) ?></strong>
-    <?php
-    $thumbnailFields = array_slice($formPreviews[$form['form_name']] ?? [], 0, 3);
-    foreach ($thumbnailFields as $previewField):
-        $previewType = strtolower((string)$previewField['field_type']);
-        $isSpecial = in_array($previewType, ['button', 'submit', 'section', 'html', 'custom'], true);
-    ?>
-        <span class="<?= $isSpecial ? 'fm-preview-special' : 'fm-preview-field' ?>">
-            <?= e($previewField['field_text']) ?><?= (int)$previewField['field_required'] === 1 ? ' *' : '' ?>
-        </span>
-    <?php endforeach; ?>
-    <?php if (!$thumbnailFields): ?><span class="fm-preview-empty">No fields</span><?php endif; ?>
+<a class="fm-live-thumb" href="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/edit.php?id=<?= (int)$form['form_id'] ?>" aria-label="Edit <?= e($displayTitle) ?>" title="Edit form">
+    <iframe tabindex="-1" scrolling="no" loading="lazy" title="<?= e($displayTitle) ?> preview" src="<?= e($config['base_url']) ?>/admin/toolbox/form-manager/thumbnail.php?id=<?= (int)$form['form_id'] ?>"></iframe>
+    <span class="fm-thumb-overlay"><i class="fa fa-pencil-square-o" aria-hidden="true"></i></span>
 </a>
 </td><td><?= e($displayTitle) ?></td><td><code><?= e($code) ?></code></td><td class="fm-date"><?= e(date('m/d/Y',strtotime($form['revision_timestamp']))) ?></td></tr>
 <?php endforeach; endif; ?></tbody></table></div>

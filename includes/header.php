@@ -13,10 +13,15 @@ $flashMessage = getFlash();
     <link rel="stylesheet" href="<?= e($config['base_url']) ?>/assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <?= $extraHead ?? '' ?>
+    <link rel="stylesheet" href="<?= e($config['base_url']) ?>/assets/css/targeted-ui.css?v=20261125-1">
 <link rel="icon" type="image/svg+xml" href="<?=e($config['base_url'])?>/assets/images/favicons/admin-favicon.svg">
 </head>
 
 <body>
+    <div id="liveRefreshOverlay" class="live-refresh-overlay" hidden role="dialog" aria-modal="true" aria-label="Refreshing live website">
+        <button type="button" class="live-refresh-close" id="liveRefreshClose">× Close</button>
+        <div class="live-refresh-content"><h2>Please Wait... Refreshing Live Website</h2><div class="live-refresh-spinner" role="status" aria-label="Refreshing"></div></div>
+    </div>
     <div class="admin-shell">
         <?php require __DIR__ . '/sidebar.php'; ?>
         <main class="main-area">

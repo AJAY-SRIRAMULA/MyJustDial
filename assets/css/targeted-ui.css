@@ -1,0 +1,32 @@
+/* Live refresh overlay */
+.live-refresh-overlay[hidden] { display:none; }
+.live-refresh-overlay { position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,.78); color:white; }
+.live-refresh-close { position:absolute; top:0; right:8px; border:0; border-radius:0 0 12px 12px; background:#d52608; color:#fff; padding:10px 16px; font-size:22px; cursor:pointer; }
+.live-refresh-content { position:absolute; top:29%; left:0; right:0; text-align:center; padding:0 20px; }
+.live-refresh-content h2 { color:#fff; font-size:clamp(26px,3.35vw,62px); font-weight:700; line-height:1.2; margin:0 0 54px; }
+.live-refresh-spinner { width:80px; height:80px; border:8px solid rgba(255,255,255,.15); border-top-color:rgba(255,255,255,.7); border-radius:50%; margin:auto; animation:live-refresh-spin .8s linear infinite; }
+@keyframes live-refresh-spin { to { transform:rotate(360deg); } }
+/* Form Manager thumbnails only: fit the cell, crop the form, and shade the entire tile. */
+.form-manager-page .fm-live-thumb { position:relative; display:block; width:154px; max-width:100%; min-width:0; aspect-ratio:16/9; box-sizing:border-box; margin:4px auto; padding:0; border:0; border-radius:5px; background:#c8cbd0; overflow:hidden; isolation:isolate; }
+.form-manager-page .fm-live-thumb iframe { position:absolute; top:0; left:0; width:760px; height:428px; border:0; transform:scale(.15); transform-origin:top left; pointer-events:none; z-index:0; }
+.form-manager-page .fm-live-thumb .fm-thumb-overlay { position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; display:grid; place-items:center; background:rgba(35,43,53,.20); color:transparent; font-size:18px; z-index:1; }
+.form-manager-page .fm-live-thumb:hover .fm-thumb-overlay,.form-manager-page .fm-live-thumb:focus-visible .fm-thumb-overlay { background:rgba(35,43,53,.34); color:#fff; }
+.fm-thumbnail-document { margin:0; background:#f6f7fb; font-family:Arial,sans-serif; overflow:hidden; }
+.fm-thumbnail-document .fb-preview-body { max-height:none; min-height:100vh; overflow:hidden; border:0; border-radius:0; padding:18px 32px; }
+.fm-thumbnail-document .pv-field { margin-bottom:12px; }
+.fm-thumbnail-document .pv-control { background:#fff; border:1px solid #c6cbd1; }
+.fm-thumbnail-document .pv-html iframe { pointer-events:none; }
+/* Member actions: only the active menu is above row controls. */
+.member-actions[open] { z-index:80; }
+.member-actions:not([open]) .member-actions-menu { display:none; }
+.member-actions[open] .member-actions-menu { position:fixed; right:auto; width:min(360px,calc(100vw - 16px)); max-height:calc(100vh - 16px); overflow:auto; z-index:81; }
+/* Desktop sidebar: one active hover target; collapsed flyouts remain clickable. */
+@media(min-width:651px){
+.sidebar .nav-group:not(.is-hovered) > .sub-nav:not(.is-open) { display:none; }
+.sidebar.has-hovered-group .nav-group:not(.is-hovered) > .sub-nav.is-open { visibility:hidden; }
+.sidebar .nav-group.is-hovered { z-index:100; }
+.sidebar .nav-group.is-hovered > .sub-nav:not(.is-click-closed) { display:block; }
+.sidebar.sidebar-collapsed .nav-group > .sub-nav { position:absolute; top:0; left:100%; width:220px; min-width:190px; max-width:calc(100vw - 58px); }
+.sidebar.sidebar-collapsed .nav-group:not(.is-hovered) > .sub-nav:not(.is-open) { display:none; }
+.sidebar.sidebar-collapsed.has-hovered-group .nav-group:not(.is-hovered) > .sub-nav.is-open { display:none; }
+}
