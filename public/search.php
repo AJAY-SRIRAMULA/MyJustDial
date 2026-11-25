@@ -4,29 +4,68 @@ require __DIR__ . '/../includes/member_forms.php';
 require __DIR__ . '/../includes/public_website.php';
 
 require_once __DIR__.'/../includes/directory_forms.php';
+require_once __DIR__.'/../includes/directory_search.php';
 ensureDirectoryForms($pdo);
 ensureDirectoryWidgets($pdo);
 $directoryNotice='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
  $code=$_POST['public_form_shortcode']??'';
  if($code==='newsletter_modal_signup'){$response=processPublicFormSubmission($pdo,$code);$directoryNotice=$response['message'];}
- if($code==='find_members' && hash_equals(csrfToken(),(string)($_POST['csrf_token']??''))){$_GET['q']=(string)($_POST['fields']['q']??'');$_GET['location']=(string)($_POST['fields']['location']??''); $_GET['page']=1; header('Location: ?'.http_build_query($_GET)); exit;}
+ if ($code === 'find_members' && hash_equals(csrfToken(), directoryText($_POST, 'csrf_token'))) {
+     $fields = is_array($_POST['fields'] ?? null) ? $_POST['fields'] : [];
+     foreach (['q', 'location', 'selection'] as $key) {
+         $_GET[$key] = directoryText($fields, $key);
+     }
+     unset($_GET['category'], $_GET['service'], $_GET['subcategory'], $_GET['profile'], $_GET['article']);
+     $_GET['page'] = 1;
+     header('Location: ?' . http_build_query($_GET));
+     exit;
+ }
 }
 $settings = getPublicWebsiteSettings($pdo);
 
 $baseUrl = $config['base_url'];
-$categoryId = (int)($_GET['category']??0);
-$serviceId=(int)($_GET['service']??0);
-$keyword=trim((string)($_GET['q']??''));
-$categoryName='';
-if($categoryId||$serviceId){$cq=$pdo->prepare($serviceId?'SELECT name FROM list_services WHERE service_id=?':'SELECT name FROM list_professions WHERE profession_id=?');$cq->execute([$serviceId?:$categoryId]);$categoryName=(string)$cq->fetchColumn();}
-$location = trim((string)($_GET['location'] ?? ''));
-$specialization = trim((string)($_GET['subcategory'] ?? ''));
+$categoryId = (int)directoryText($_GET, 'category');
+$serviceId = (int)directoryText($_GET, 'service');
+$selection = directoryText($_GET, 'selection');
+$invalidCategory = false;
+if (array_key_exists('selection', $_GET)) {
+    $categoryId = $serviceId = 0;
+    if (preg_match('/^([ps]):([1-9][0-9]*)$/D', $selection, $match)) {
+        if ($match[1] === 'p') $categoryId = (int)$match[2];
+        else $serviceId = (int)$match[2];
+    } elseif ($selection !== '' || !is_string($_GET['selection'])) {
+        $invalidCategory = true;
+    }
+}
+$keyword = directoryText($_GET, 'q');
+$location = directoryText($_GET, 'location');
+$specialization = directoryText($_GET, 'subcategory');
+$categoryName = '';
+$tree = directoryCategories($pdo);
+if ($categoryId && !isset($tree[$categoryId])) $invalidCategory = true;
+if ($categoryId && !$invalidCategory) $categoryName = $tree[$categoryId]['name'];
+if ($serviceId) {
+    $found = false;
+    foreach ($tree as $pid => $top) {
+        foreach ($top['children'] as $sid => $sub) {
+            if ($sid == $serviceId || isset($sub['children'][$serviceId])) {
+                $found = true;
+                if ($categoryId && $categoryId != $pid) $invalidCategory = true;
+                $categoryId = (int)$pid;
+                $categoryName = $top['name'] . ' / ' . $sub['name'];
+                if ($sid != $serviceId) $categoryName .= ' / ' . $sub['children'][$serviceId];
+            }
+        }
+    }
+    if (!$found) $invalidCategory = true;
+}
 $profileId = filter_input(INPUT_GET, 'profile', FILTER_VALIDATE_INT) ?: 0;
 $articleId = filter_input(INPUT_GET, 'article', FILTER_VALIDATE_INT) ?: 0;
 $results = [];
 $sortOptions = ['recent'=>'u.featured DESC, u.user_id DESC','name_asc'=>'u.first_name ASC,u.last_name ASC,u.user_id ASC','name_desc'=>'u.first_name DESC,u.last_name DESC,u.user_id DESC'];
-$sort = (string)($_GET['sort'] ?? 'recent');
+$sort = directoryText($_GET, 'sort');
+if (!isset($sortOptions[$sort])) $sort = 'recent';
 $page = max(1,(int)($_GET['page'] ?? 1));
 $total = 0;
 $view = ($_GET['view'] ?? 'list') === 'grid' ? 'grid' : 'list';
@@ -62,7 +101,8 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
     $article = $articleQuery->fetch() ?: null;
     
 } elseif (tableExists($pdo, 'users_data')) {
-    $conditions = ['active = 2'];
+    $conditions = ['u.active = 2'];
+    if ($invalidCategory) $conditions[] = '1 = 0';
     $parameters = [];
 
     if ($categoryId > 0) {
@@ -70,8 +110,27 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
         $parameters[] = $categoryId;
     }
 
-    if ($serviceId > 0) { $conditions[]='EXISTS (SELECT 1 FROM rel_services r JOIN list_services s ON s.service_id=r.service_id WHERE r.user_id=u.user_id AND (s.service_id=? OR s.master_id=?))'; array_push($parameters,$serviceId,$serviceId); }
-    if ($keyword !== '') { $conditions[]='(u.first_name LIKE ? OR u.last_name LIKE ? OR u.company LIKE ? OR u.search_description LIKE ? OR EXISTS (SELECT 1 FROM list_professions p WHERE p.profession_id=u.profession_id AND (p.name LIKE ? OR p.keywords LIKE ?)))'; array_push($parameters,...array_fill(0,6,"%$keyword%")); }
+    if ($serviceId > 0) {
+        $conditions[] = 'EXISTS (SELECT 1 FROM rel_services r JOIN list_services s ON s.service_id=r.service_id WHERE r.user_id=u.user_id AND s.profession_id=u.profession_id AND (s.service_id=? OR s.master_id=?))';
+        array_push($parameters, $serviceId, $serviceId);
+    }
+    if ($keyword !== '') {
+        $matches = ["CONCAT_WS(' ',u.first_name,u.last_name) LIKE ?", 'u.company LIKE ?', 'u.position LIKE ?', 'u.search_description LIKE ?', 'u.about_me LIKE ?'];
+        $term = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $keyword) . '%';
+        $matches = array_map(static fn($condition) => $condition . " ESCAPE '!'", $matches);
+        array_push($parameters, ...array_fill(0, count($matches), $term));
+        [$topMatches, $serviceMatches] = directoryKeywordCategories($pdo, $keyword);
+        if ($topMatches) {
+            $matches[] = 'u.profession_id IN (' . implode(',', array_fill(0, count($topMatches), '?')) . ')';
+            array_push($parameters, ...$topMatches);
+        }
+        if ($serviceMatches) {
+            $slots = implode(',', array_fill(0, count($serviceMatches), '?'));
+            $matches[] = "EXISTS (SELECT 1 FROM rel_services r JOIN list_services s ON s.service_id=r.service_id WHERE r.user_id=u.user_id AND s.profession_id=u.profession_id AND (s.service_id IN ($slots) OR s.master_id IN ($slots)))";
+            array_push($parameters, ...$serviceMatches, ...$serviceMatches);
+        }
+        $conditions[] = '(' . implode(' OR ', $matches) . ')';
+    }
     if ($specialization !== '') {
         $conditions[] = 'position = ?';
         $parameters[] = $specialization;
@@ -216,6 +275,8 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
                             <a class="view-toggle <?= $view==='grid'?'selected':'' ?>" aria-label="Grid view" aria-pressed="<?= $view==='grid'?'true':'false' ?>" href="<?= e(directoryLink(['view'=>'grid'])) ?>"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></a>
                         </div>
                         <h1><?= e($categoryName ? $categoryName.' Directory' : 'Search Results') ?></h1>
+                        <?php if ($keyword !== ''): ?><p>Keyword: <?= e($keyword) ?></p><?php endif; ?>
+                        <?php if ($invalidCategory): ?><p>Invalid or unavailable category.</p><?php endif; ?>
                         <div class="directory-results <?= $view==='list'?'directory-list':'directory-grid' ?>">
                             <?php foreach ($results as $listing):
                                 $id = (int)$listing['user_id'];

@@ -5,31 +5,10 @@ require __DIR__ . '/../includes/public_website.php';
 
 $settings = getPublicWebsiteSettings($pdo);
 $baseUrl = $config['base_url'];
-$categories = [];
-$specializations = [];
+require_once __DIR__ . '/../includes/directory_search.php';
 $members = [];
 
-if (tableExists($pdo, 'data_categories')) {
-    $categoryQuery = $pdo->query(
-        "SELECT data_id, data_name
-         FROM data_categories
-         WHERE data_active = 1 AND data_name <> ''
-         ORDER BY display_order, data_name
-         LIMIT 50"
-    );
-    $categories = $categoryQuery->fetchAll();
-}
-
 if (tableExists($pdo, 'users_data')) {
-    $specializationQuery = $pdo->query(
-        "SELECT DISTINCT position
-         FROM users_data
-         WHERE active = 2 AND position <> ''
-         ORDER BY position
-         LIMIT 50"
-    );
-    $specializations = $specializationQuery->fetchAll();
-
     $memberQuery = $pdo->query(
         "SELECT u.user_id, u.first_name, u.last_name, u.company, u.city, u.state_ln,
                 (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
@@ -119,7 +98,7 @@ $memberProfileUrl = static function (array $member) use ($baseUrl): string {
     <nav class="public-nav" aria-label="Main navigation">
         <div class="site-container nav-inner">
             <a class="active" href="<?= e($baseUrl) ?>/public/index.php">Home</a>
-            <a href="#directory-search">Search Directory</a>
+            <a href="search.php">Search Directory</a>
             <a href="#how-it-works">How It Works</a>
             <a href="#website-blog">Website Blog</a>
         </div>
@@ -136,22 +115,11 @@ $memberProfileUrl = static function (array $member) use ($baseUrl): string {
                 <form class="search-form" id="directory-search" action="<?= e($baseUrl) ?>/public/search.php" method="get">
                     <label>
                         <span>What do you need?</span>
-                        <select name="category">
-                            <option value="">Select Category</option>
-                            <?php foreach ($categories as $category): ?>
-                                <option value="<?= (int)$category['data_id'] ?>"><?= e($category['data_name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <input type="search" name="q" placeholder="Name or Keyword">
                     </label>
-
                     <label>
-                        <span>Specializing in:</span>
-                        <select name="subcategory">
-                            <option value="">Select Sub-Category</option>
-                            <?php foreach ($specializations as $specialization): ?>
-                                <option value="<?= e($specialization['position']) ?>"><?= e($specialization['position']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <span>Category:</span>
+                        <?= directoryCategorySelect($pdo, []) ?>
                     </label>
 
                     <label class="location-field">

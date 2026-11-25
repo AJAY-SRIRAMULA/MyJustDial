@@ -272,6 +272,10 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $required = !empty($field['field_required']);
         $placeholder = !empty($settings['label_placeholder']) ? ($label ?: $name) : (string)$field['field_placeholder'];
         $value = (string)$field['default_value'];
+        if ($shortcode === 'find_members' && in_array($name, ['q', 'location'], true)) {
+            require_once __DIR__ . '/directory_search.php';
+            $value = directoryText($_GET, $name);
+        }
         $options = publicFormFieldOptions($field);
 
         if ($type === 'captcha') { $html .= renderConfiguredCaptcha($pdo); continue; }
@@ -389,6 +393,10 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $html .= '</div>';
     }
 
+    if ($shortcode === 'find_members') {
+        require_once __DIR__ . '/directory_search.php';
+        $html .= '<label class="directory-category-field">Category' . directoryCategorySelect($pdo, $_GET, 'fields') . '</label>';
+    }
     $buttonLabel = match ($shortcode) { 'newsletter_modal_signup' => 'Subscribe Now', 'find_members' => 'Search Now', default => 'Send Message' };
     $html .= '<button class="public-form-submit" type="submit">' . e($buttonLabel) . '</button>';
     $html .= '</form>';

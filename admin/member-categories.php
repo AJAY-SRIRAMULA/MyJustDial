@@ -1,6 +1,18 @@
 <?php
 require __DIR__.'/../includes/bootstrap.php';
 require __DIR__.'/../includes/auth.php';
+require __DIR__.'/../includes/category_stock.php';
+if (isset($_GET['stock_search'])) {
+    header('Content-Type: application/json; charset=UTF-8');
+    try {
+        verifyCsrf();
+        echo json_encode(categoryStockSearch($_POST));
+    } catch (Throwable $ex) {
+        http_response_code(400);
+        echo json_encode(['error' => $ex->getMessage()]);
+    }
+    exit;
+}
 $pageTitle='Member Categories'; $activeMenu='members';
 $level=max(1,min(3,(int)($_GET['level']??1))); $top=$level===1;
 $table=$top?'list_professions':'list_services'; $pk=$top?'profession_id':'service_id';
@@ -46,17 +58,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if ($l===1) {
             $q=$pdo->prepare('SELECT profession_id FROM list_professions WHERE filename=?'); $q->execute([$slug]); $id=$q->fetchColumn();
             if (!$id) { $pdo->prepare("INSERT INTO list_professions (name,`desc`,filename,keywords,icon,sort_order,lead_price,image) VALUES (?,'',?,?,'',?,?,'')")->execute([$name,$slug,$keywords,(int)$order,$price]); $id=$pdo->lastInsertId(); }
+            $pdo->prepare("UPDATE list_professions SET keywords=? WHERE profession_id=? AND TRIM(keywords)=''")->execute([$keywords,$id]);
             $topMap[$oldId]=$id;
         } else {
             $parent=$topMap[$profession]??0; $masterId=$l===3?($subMap[$master]??0):0;
             if (!$parent || ($l===3 && !$masterId)) throw new RuntimeException('CSV must include parent categories.');
             $q=$pdo->prepare('SELECT service_id FROM list_services WHERE filename=? AND profession_id=? AND master_id=?'); $q->execute([$slug,$parent,$masterId]); $id=$q->fetchColumn();
             if (!$id) { $pdo->prepare("INSERT INTO list_services (name,`desc`,profession_id,master_id,filename,keywords,sort_order,lead_price) VALUES (?,'',?,?,?,?,?,?)")->execute([$name,$parent,$masterId,$slug,$keywords,(int)$order,$price]); $id=$pdo->lastInsertId(); }
+            $pdo->prepare("UPDATE list_services SET keywords=? WHERE service_id=? AND TRIM(keywords)=''")->execute([$keywords,$id]);
             if ($l===2) $subMap[$oldId]=$id;
         }
     }
  } elseif($action==='add'){
- $names = $top ? preg_split('/\R/u', (string)($_POST['names'] ?? '')) : [$_POST['name'] ?? ''];
+ $names = preg_split('/\R/u', (string)($_POST['names'] ?? $_POST['name'] ?? ''));
  $names = array_values(array_unique(array_filter(array_map('trim', $names), static fn($name) => $name !== '')));
  if (!$names || count($names) > 200) throw new RuntimeException('Enter between 1 and 200 category names, one per line.');
  foreach ($names as $name) {
@@ -102,7 +116,17 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $pdo->prepare("UPDATE `$table` SET name=?,filename=?,sort_order=?,lead_price=?,keywords=? WHERE `$pk`=? AND $filter")->execute([$name,$slug,(int)$r['sort_order'],$price,$r['keywords'],$id]);
  }
  } elseif($action==='image'){
- $id=(int)$_POST['id'];$q=$pdo->prepare("SELECT `$pk` FROM `$table` WHERE `$pk`=? AND $filter");$q->execute([$id]);if(!$q->fetchColumn())throw new RuntimeException('Invalid category.');$f=$_FILES['image']??[];$mime=isset($f['tmp_name'])&&is_uploaded_file($f['tmp_name'])?(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']):'';$ext=['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'][$mime]??'';if(!$ext||$f['size']>5000000)throw new RuntimeException('Choose a PNG, JPEG or WebP under 5 MB.');$dir=__DIR__.'/../public/assets/category-images';if(!is_dir($dir))mkdir($dir,0755,true);$path='public/assets/category-images/'.bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($f['tmp_name'],__DIR__.'/../'.$path))throw new RuntimeException('Upload failed.');if($top)$pdo->prepare('UPDATE list_professions SET image=? WHERE profession_id=?')->execute([$path,$id]);else{$pdo->prepare("DELETE FROM users_meta WHERE `database`='list_services' AND database_id=? AND `key`='category_image'")->execute([$id]);$pdo->prepare("INSERT INTO users_meta (`database`,database_id,`key`,value,date_added) VALUES ('list_services',?,'category_image',?,?)")->execute([$id,$path,date('YmdHis')]);}
+ $id=(int)$_POST['id'];$q=$pdo->prepare("SELECT `$pk` FROM `$table` WHERE `$pk`=? AND $filter");$q->execute([$id]);if(!$q->fetchColumn())throw new RuntimeException('Invalid category.');$existing = (string)($_POST['library_image'] ?? '');
+ if (!empty($_POST['stock_id'])) {
+     $path = categoryStockSave((string)$_POST['stock_id'], (string)($_POST['stock_size'] ?? 'medium'));
+ } elseif ($existing !== '') {
+     if (!preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/D', $existing)) throw new RuntimeException('Invalid library image.');
+     $path = 'public/assets/category-images/'.$existing;
+     if (!is_file(__DIR__.'/../'.$path)) throw new RuntimeException('Image no longer exists.');
+ } else {
+ $f=$_FILES['image']??[];$mime=isset($f['tmp_name'])&&is_uploaded_file($f['tmp_name'])?(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']):'';$ext=['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'][$mime]??'';if(!$ext||$f['size']>5000000)throw new RuntimeException('Choose a PNG, JPEG or WebP under 5 MB.');$dir=__DIR__.'/../public/assets/category-images';if(!is_dir($dir))mkdir($dir,0755,true);$path='public/assets/category-images/'.bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($f['tmp_name'],__DIR__.'/../'.$path))throw new RuntimeException('Upload failed.');
+ }
+ if($top)$pdo->prepare('UPDATE list_professions SET image=? WHERE profession_id=?')->execute([$path,$id]);else{$pdo->prepare("DELETE FROM users_meta WHERE `database`='list_services' AND database_id=? AND `key`='category_image'")->execute([$id]);$pdo->prepare("INSERT INTO users_meta (`database`,database_id,`key`,value,date_added) VALUES ('list_services',?,'category_image',?,?)")->execute([$id,$path,date('YmdHis')]);}
  } else throw new RuntimeException('Select an action.');
  $pdo->commit();$notice='Changes saved.';
  }catch(Throwable $ex){if($pdo->inTransaction())$pdo->rollBack();$notice=$ex instanceof RuntimeException?$ex->getMessage():'Unable to save changes.';}
@@ -146,8 +170,215 @@ require __DIR__.'/../includes/header.php';
     </form>
 </dialog>
 <?php else: ?>
-<dialog id="cat-add"><form method="post"><h2>Add Category</h2><input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input name="name" placeholder="Category name" required><?php if(!$top):?><select name="parent" required><option value="">Select parent</option><?php foreach($parents as $p):?><option value="<?=$p['id']?>"><?=e($p['name'])?></option><?php endforeach;?></select><?php endif;?><button name="action" value="add">Add Category</button><button type="button" onclick="this.closest('dialog').close()">Cancel</button></form></dialog>
+<?php
+$addLabel = $level === 2 ? 'Sub-Level' : 'Sub-Sub Level';
+$topParents = $pdo->query('SELECT profession_id id,name FROM list_professions ORDER BY name')->fetchAll();
+$subParents = $level === 3 ? $pdo->query('SELECT service_id id,profession_id,name FROM list_services WHERE master_id=0 ORDER BY name')->fetchAll() : [];
+?>
+<dialog id="cat-add" class="cat-add-top cat-add-child" aria-labelledby="cat-add-title">
+    <form method="post">
+        <header class="cat-add-header"><h2 id="cat-add-title">Add <?=e($addLabel)?> Categories</h2></header>
+        <button class="cat-add-close" type="button" onclick="this.closest('dialog').close()">× Close</button>
+        <div class="cat-add-body">
+            <input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>">
+            <div class="cat-add-columns">
+                <div>
+                    <h3>Step 1: Attribute to existing top-level categories:</h3>
+                    <div class="cat-parent-list">
+                        <?php foreach ($topParents as $parentRow): ?>
+                            <label><input type="radio" name="<?=$level===2?'parent':'top_parent'?>" value="<?=$parentRow['id']?>" required <?= $level===3?'onchange="showCategoryChildren(this.value)"':'' ?>> <?=e($parentRow['name'])?> (<?=$parentRow['id']?>)</label>
+                            <?php if ($level===3): ?>
+                                <div class="cat-child-options" data-parent="<?=$parentRow['id']?>" hidden>
+                                    <?php foreach ($subParents as $sub): if ($sub['profession_id'] != $parentRow['id']) continue; ?>
+                                        <label><input type="radio" name="parent" value="<?=$sub['id']?>" required disabled> <?=e($sub['name'])?></label>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div>
+                    <h3>Step 2: Enter 1 new <?=e($addLabel)?> per line:</h3>
+                    <textarea name="names" placeholder="ALERT: ONLY ENTER ONE CATEGORY PER LINE" required></textarea>
+                </div>
+            </div>
+            <button class="cat-add-save" name="action" value="add">Save <?=e($addLabel)?> Categories</button>
+        </div>
+    </form>
+</dialog>
 <?php endif; ?>
-<dialog id="cat-upload"><form method="post" enctype="multipart/form-data"><h2>Upload Image</h2><input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="hidden" name="id" id="image-id"><input type="file" name="image" accept="image/png,image/jpeg,image/webp" required><button name="action" value="image">Upload</button><button type="button" onclick="this.closest('dialog').close()">Cancel</button></form></dialog>
-<dialog id="cat-import"><form method="post" enctype="multipart/form-data"><h2>Import Categories</h2><p>Use the exported CSV format. Existing matching categories are retained.</p><input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="file" name="categories_csv" accept=".csv,text/csv" required><button name="action" value="import">Import Categories</button><button type="button" onclick="this.closest('dialog').close()">Cancel</button></form></dialog>
+<?php
+$libraryImages = glob(__DIR__.'/../public/assets/category-images/*') ?: [];
+$libraryImages = array_filter($libraryImages, static fn($file) => is_file($file) && preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/D', basename($file)));
+usort($libraryImages, static fn($a,$b) => filemtime($b) <=> filemtime($a));
+?>
+<dialog id="cat-upload" aria-labelledby="cat-upload-title">
+    <form method="post" enctype="multipart/form-data" id="cat-image-form">
+        <header class="cat-library-header"><h2 id="cat-upload-title">Choose an Image</h2><button type="button" onclick="this.closest('dialog').close()" aria-label="Close">×</button></header>
+        <input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>">
+        <input type="hidden" name="id" id="image-id">
+        <input type="hidden" name="library_image" id="cat-library-selected">
+        <input type="file" name="image" id="cat-image-file" accept="image/png,image/jpeg,image/webp" hidden>
+        <input type="hidden" name="stock_id" id="cat-stock-id">
+        <input type="hidden" name="stock_size" id="cat-stock-size-value">
+        <input type="hidden" name="action" value="image">
+        <div class="cat-library-tabs"><button type="button" class="cat-tab active" id="cat-local-tab">▧ My Library</button><button type="button" class="cat-tab" id="cat-stock-tab">◎ Free Stock Photos</button><button type="button" class="cat-library-upload" onclick="document.getElementById('cat-image-file').click()">↑ Upload</button></div>
+        <div class="cat-library-toolbar" id="cat-local-toolbar">
+            <select id="cat-image-type" aria-label="Image type"><option value="">All Types</option><option value="jpg">JPEG</option><option value="png">PNG</option><option value="webp">WebP</option></select>
+            <input id="cat-image-search" placeholder="Search images" aria-label="Search images">
+            <select id="cat-image-sort" aria-label="Sort images"><option value="new">Newest First</option><option value="old">Oldest First</option></select>
+            <button type="button" onclick="document.getElementById('cat-library-grid').classList.remove('cat-library-list')" aria-label="Grid view">▦</button>
+            <button type="button" onclick="document.getElementById('cat-library-grid').classList.add('cat-library-list')" aria-label="List view">☰</button>
+        </div>
+        <div class="cat-library-content" id="cat-local-content">
+            <p class="cat-library-info"><strong>ⓘ Supported:</strong> .jpg, .jpeg, .png, .webp, up to 5 MB each</p>
+            <div class="cat-library-folder">▰<strong>Category images</strong><span><?=count($libraryImages)?> items</span></div>
+            <div class="cat-library-divider">Category images</div>
+            <div id="cat-library-grid">
+                <?php foreach ($libraryImages as $file): $name=basename($file); ?>
+                    <button type="button" class="cat-library-image" data-name="<?=e($name)?>" data-time="<?=filemtime($file)?>" aria-pressed="false">
+                        <img src="<?=e($config['base_url'].'/public/assets/category-images/'.$name)?>" alt="Category image">
+                        <span><?=e($name)?></span><b class="cat-use-image">Use This Image</b>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+            <p id="cat-library-empty" hidden>No matching images. Upload an image to get started.</p>
+        </div>
+        <div class="cat-library-toolbar" id="cat-stock-toolbar" hidden>
+            <div class="cat-stock-query"><select aria-label="Provider"><option>Pexels</option></select><input id="cat-stock-query" placeholder="Search free stock photos" aria-label="Search free stock photos"></div>
+            <select id="cat-stock-size" aria-label="Image size"><option value="medium">Medium Image (650 Pixels)</option><option value="small">Small Image (400 Pixels)</option><option value="large">Large Image (1200 Pixels)</option></select>
+            <select id="cat-stock-orientation" aria-label="Orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option><option value="square">Square</option><option value="">Any orientation</option></select>
+            <button type="button" id="cat-stock-search">Search</button>
+        </div>
+        <div class="cat-library-content" id="cat-stock-content" hidden>
+            <p id="cat-stock-status" role="status">Search Pexels for free stock photos.</p>
+            <div id="cat-stock-grid"></div>
+            <button type="button" id="cat-stock-more" hidden>Load more</button>
+        </div>
+        <footer class="cat-library-footer" hidden><span id="cat-image-status">Select an image or upload a new one.</span><button type="submit" name="action" value="image" id="cat-image-submit" disabled>Use Image</button></footer>
+    </form>
+</dialog>
+<script>
+function showCategoryChildren(id) {
+    document.querySelectorAll('.cat-child-options').forEach(group => {
+        group.hidden = group.dataset.parent !== id;
+        group.querySelectorAll('input').forEach(input => {
+            input.checked = false;
+            input.disabled = group.hidden;
+        });
+    });
+}
+const imageDialog = document.getElementById('cat-upload');
+const imageFile = document.getElementById('cat-image-file');
+const imageSelected = document.getElementById('cat-library-selected');
+const imageSubmit = document.getElementById('cat-image-submit');
+const imageStatus = document.getElementById('cat-image-status');
+const imageGrid = document.getElementById('cat-library-grid');
+const imageCards = Array.from(imageGrid.querySelectorAll('.cat-library-image'));
+function clearImageSelection() {
+    imageCards.forEach(card => card.setAttribute('aria-pressed', 'false'));
+    imageSelected.value = '';
+    imageFile.value = '';
+    imageSubmit.disabled = true;
+    imageStatus.textContent = 'Select an image or upload a new one.';
+}
+imageDialog.addEventListener('close', clearImageSelection);
+imageCards.forEach(card => card.addEventListener('click', () => {
+    clearImageSelection();
+    card.setAttribute('aria-pressed', 'true');
+    imageSelected.value = card.dataset.name;
+    imageSubmit.disabled = false;
+    imageStatus.textContent = 'Library image selected.';
+    document.getElementById('cat-image-form').requestSubmit();
+}));
+imageFile.addEventListener('change', () => {
+    if (!imageFile.files.length) return;
+    imageCards.forEach(card => card.setAttribute('aria-pressed', 'false'));
+    imageSelected.value = '';
+    const file = imageFile.files[0];
+    const valid = file.size <= 5000000 && ['image/jpeg','image/png','image/webp'].includes(file.type);
+    imageSubmit.disabled = !valid;
+    imageStatus.textContent = valid ? file.name : 'Choose a PNG, JPEG or WebP under 5 MB.';
+    if (valid) document.getElementById('cat-image-form').requestSubmit();
+    else alert(imageStatus.textContent);
+});
+function filterCategoryImages() {
+    const term = document.getElementById('cat-image-search').value.toLowerCase();
+    const type = document.getElementById('cat-image-type').value;
+    const newest = document.getElementById('cat-image-sort').value === 'new';
+    let visible = 0;
+    imageCards.sort((a,b) => (Number(b.dataset.time)-Number(a.dataset.time))*(newest?1:-1)).forEach(card => {
+        card.hidden = !card.dataset.name.includes(term) || (type !== '' && !card.dataset.name.endsWith('.'+type));
+        if (!card.hidden) visible++;
+        imageGrid.appendChild(card);
+    });
+    document.getElementById('cat-library-empty').hidden = visible !== 0;
+}
+['cat-image-search','cat-image-type','cat-image-sort'].forEach(id => document.getElementById(id).addEventListener('input', filterCategoryImages));
+filterCategoryImages();
+const stockId = document.getElementById('cat-stock-id');
+const stockGrid = document.getElementById('cat-stock-grid');
+const stockStatus = document.getElementById('cat-stock-status');
+const stockMore = document.getElementById('cat-stock-more');
+let stockPage = 1;
+let stockParams = null;
+let stockBusy = false;
+function showStockTab(stock) {
+    clearImageSelection();
+    stockId.value = '';
+    for (const suffix of ['toolbar', 'content']) {
+        document.getElementById('cat-local-' + suffix).hidden = stock;
+        document.getElementById('cat-stock-' + suffix).hidden = !stock;
+    }
+    document.getElementById('cat-local-tab').classList.toggle('active', !stock);
+    document.getElementById('cat-stock-tab').classList.toggle('active', stock);
+}
+document.getElementById('cat-local-tab').onclick = () => showStockTab(false);
+document.getElementById('cat-stock-tab').onclick = () => showStockTab(true);
+imageDialog.addEventListener('close', () => showStockTab(false));
+async function searchStock(more = false) {
+    if (stockBusy) return;
+    if (!more) {
+        stockPage = 1;
+        stockGrid.replaceChildren();
+        stockParams = {query: document.getElementById('cat-stock-query').value.trim(), orientation: document.getElementById('cat-stock-orientation').value, size: document.getElementById('cat-stock-size').value};
+    }
+    if (!stockParams.query) { stockStatus.textContent = 'Enter a search keyword.'; return; }
+    stockBusy = true;
+    stockMore.hidden = true;
+    stockStatus.textContent = 'Searching Pexels…';
+    try {
+        const body = new URLSearchParams({...stockParams, page: stockPage, csrf_token: document.querySelector('#cat-image-form [name=csrf_token]').value});
+        const url = new URL(location.href);
+        url.searchParams.set('stock_search', '1');
+        const response = await fetch(url, {method: 'POST', body});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Search failed.');
+        for (const photo of data.photos) {
+            const card = document.createElement('article');
+            card.className = 'cat-stock-card';
+            const img = document.createElement('img');
+            img.src = photo.preview; img.alt = photo.alt || 'Stock photo'; img.loading = 'lazy';
+            const use = document.createElement('button');
+            use.type = 'button'; use.className = 'cat-use-image'; use.textContent = 'Use This Image';
+            use.onclick = () => {
+                clearImageSelection(); stockId.value = photo.id;
+                document.getElementById('cat-stock-size-value').value = stockParams.size;
+                document.getElementById('cat-image-form').requestSubmit();
+            };
+            const info = document.createElement('a');
+            info.className = 'cat-stock-info'; info.href = photo.url; info.target = '_blank'; info.rel = 'noopener noreferrer'; info.textContent = 'ⓘ'; info.title = 'Photo by ' + photo.photographer + ' on Pexels';
+            const dimensions = document.createElement('span'); dimensions.className = 'cat-stock-dimensions'; dimensions.textContent = photo.width + ' × ' + photo.height + ' original';
+            card.append(img, use, info, dimensions); stockGrid.append(card);
+        }
+        stockStatus.textContent = stockGrid.children.length ? 'Photos provided by Pexels' : 'No matching photos found.';
+        stockMore.hidden = !data.more; stockPage++;
+    } catch (error) { stockStatus.textContent = error.message; }
+    finally { stockBusy = false; }
+}
+document.getElementById('cat-stock-search').onclick = () => searchStock();
+stockMore.onclick = () => searchStock(true);
+document.getElementById('cat-stock-query').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); searchStock(); } });
+</script>
+<dialog id="cat-import"><form method="post" enctype="multipart/form-data"><h2>Import Categories</h2><p>Use the exported CSV format. Existing matching categories are retained; empty keyword fields are filled from the CSV.</p><input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="file" name="categories_csv" accept=".csv,text/csv" required><button name="action" value="import">Import Categories</button><button type="button" onclick="this.closest('dialog').close()">Cancel</button></form></dialog>
 <?php require __DIR__.'/../includes/footer.php';?>
