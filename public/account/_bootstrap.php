@@ -9,7 +9,6 @@ $isAdminPreview = !empty($_SESSION['admin_id']) && isset($_GET['admin_member']);
 if (empty($_SESSION['member_id']) && !$isAdminPreview) {
     redirect('/public/login.php');
 }
-ensureMemberForms($pdo);
 $memberId = $isAdminPreview ? (int)$_GET['admin_member'] : (int)$_SESSION['member_id'];
 $memberQuery = $pdo->prepare(
     'SELECT u.*, s.subscription_name

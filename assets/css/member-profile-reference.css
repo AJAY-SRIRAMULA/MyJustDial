@@ -32,3 +32,21 @@
 .profile-message-panel .profile-blue { margin-top: 12px; }
 .public-member-section { margin-top: 24px; }
 @media (max-width: 750px) { .profile-listing-layout, .profile-message-layout { grid-template-columns: 1fr; } .profile-actions { gap: 8px; } .profile-identity h1 { font-size: 24px; } }
+
+.profile-page .public-dynamic-form {display:grid;gap:14px;margin:0}
+.profile-page .public-form-field {min-width:0;display:grid;gap:6px}
+.profile-page .public-form-field label {font-size:13px;font-weight:600}
+.profile-page .public-form-required {color:#b33;margin-left:4px}
+.profile-page .public-form-field input:not([type=radio]):not([type=checkbox]),.profile-page .public-form-field select,.profile-page .public-form-field textarea {width:100%;box-sizing:border-box;border:1px solid #d2d8df;background:#fff;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;color:#333}
+.profile-page .public-form-honeypot {display:none}
+.profile-lead-panel .public-form-field > label {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.profile-page .public-form-submit {background:#006eae;color:#fff;border:0;border-radius:10px;padding:13px;width:100%;cursor:pointer;font:inherit}
+.profile-review-panel textarea {min-height:190px;resize:vertical}
+.profile-review-panel .public-form-choice-group {display:flex;justify-content:space-between;gap:12px}
+.profile-review-panel .public-form-choice {display:flex;align-items:center;gap:5px}
+.review-counter {text-align:right;color:#888;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:0 0 8px 8px}
+.profile-result {padding:12px;margin:12px;border-radius:6px;background:#e9f5ec;color:#185c30}.profile-result.error {background:#fff0ef;color:#a22}
+
+.profile-actions {gap:12px 24px}.profile-review-action{grid-column:2}.profile-phone{border:1px solid #777;border-radius:10px;background:transparent;padding:10px;cursor:pointer;font:inherit;color:#282828}.profile-rating-header,.profile-review-panel .profile-rating-row{display:grid;grid-template-columns:minmax(0,1fr) repeat(5,minmax(22px,8.3%));align-items:center;gap:0;padding:12px;background:#f8f8f8;border-inline:1px solid #ddd}.profile-rating-header{background:#ececec;border-radius:10px 10px 0 0;border-top:1px solid #ddd;font-size:14px}.profile-rating-header span{text-align:center}.profile-review-panel .profile-rating-row{margin-top:-14px}.profile-rating-row .public-form-choice-group{display:contents}.profile-rating-row .public-form-choice{position:relative;justify-content:center;cursor:pointer;color:#d4d4d4;font-size:22px}.profile-rating-row .public-form-choice.rated{color:#e7a51c}.profile-rating-row input,.rating-accessible{position:absolute;opacity:0;width:1px;height:1px}.profile-rating-row input:focus-visible+span{outline:2px solid #006eae}.profile-rating-row .public-form-choice:hover{color:#e7a51c}.profile-rating-row:has(+ :not(.profile-rating-row)){border-bottom:1px solid #ddd;border-radius:0 0 10px 10px}.profile-review-panel textarea{border-radius:8px 8px 0 0!important}.review-counter{margin-top:-6px;background:white}.profile-lead-panel .public-form-field textarea{min-height:80px}
+
+.profile-review-panel .profile-rating-row .public-form-choice-group{display:contents}.profile-review-panel .profile-rating-row .public-form-choice{font-size:22px;justify-content:center}.profile-rating-row .public-form-choice input{position:absolute;opacity:0;width:1px;height:1px}.profile-actions .profile-blue{grid-column:1;grid-row:2}.profile-phone{grid-column:2;grid-row:2}

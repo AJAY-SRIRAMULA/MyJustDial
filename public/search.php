@@ -5,12 +5,11 @@ require __DIR__ . '/../includes/public_website.php';
 
 require_once __DIR__.'/../includes/directory_forms.php';
 require_once __DIR__.'/../includes/directory_search.php';
-ensureDirectoryForms($pdo);
 ensureDirectoryWidgets($pdo);
 $directoryNotice='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
  $code=$_POST['public_form_shortcode']??'';
- if($code==='newsletter_modal_signup'){$response=processPublicFormSubmission($pdo,$code);$directoryNotice=$response['message'];}
+ if(in_array($code,['newsletter_modal_signup','website_newsletter_signup_form'],true)){$response=processPublicFormSubmission($pdo,$code);$directoryNotice=$response['message'];}
  if ($code === 'find_members' && hash_equals(csrfToken(), directoryText($_POST, 'csrf_token'))) {
      $fields = is_array($_POST['fields'] ?? null) ? $_POST['fields'] : [];
      foreach (['q', 'location', 'selection'] as $key) {

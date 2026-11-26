@@ -78,10 +78,10 @@ function independentDestinationOwnerKey(array $destination): string
     return '__mjd_owner_' . hash('sha256', $destination[3] ?? 'member');
 }
 
-function validateIndependentDestination(PDO $pdo, array $destination): void
+function validateIndependentDestination(PDO $pdo, array $destination, bool $review = false): void
 {
     [$table, $key] = $destination;
-    if (preg_match('/^(admin|bd_|users_|forms?$|form_fields$|subscription|membership|data_widgets|website_|payment|rel_|list_|login|session|api|config|settings)/i', $table)) {
+    if (!($review && $table === 'users_reviews') && preg_match('/^(admin|bd_|users_|forms?$|form_fields$|subscription|membership|data_widgets|website_|payment|rel_|list_|login|session|api|config|settings)/i', $table)) {
         throw new RuntimeException('This table is reserved for application data.');
     }
     $query = $pdo->prepare('SELECT c.EXTRA, c.DATA_TYPE, t.ENGINE FROM INFORMATION_SCHEMA.COLUMNS c JOIN INFORMATION_SCHEMA.TABLES t ON t.TABLE_SCHEMA=c.TABLE_SCHEMA AND t.TABLE_NAME=c.TABLE_NAME WHERE c.TABLE_SCHEMA=DATABASE() AND c.TABLE_NAME=? AND c.COLUMN_NAME=?');
@@ -105,7 +105,7 @@ function independentMemberDestinationId(PDO $pdo, array $destination, int $membe
 function saveIndependentMemberDestination(PDO $pdo, array $destination, int $memberId, array $submitted): void
 {
     [$table, $key, $columns] = $destination;
-    validateIndependentDestination($pdo, $destination);
+    validateIndependentDestination($pdo, $destination, $review);
     if (!$pdo->inTransaction()) throw new RuntimeException('Destination requires a transaction.');
     $lock = $pdo->prepare('SELECT user_id FROM users_data WHERE user_id=? FOR UPDATE');
     $lock->execute([$memberId]);
@@ -149,9 +149,9 @@ function destinationMissingValue(array $column)
     throw new RuntimeException('No safe fallback for required destination column: ' . $name . ' (' . $type . ')');
 }
 
-function insertDynamicDestination(PDO $pdo, array $destination, array $direct, ?int $explicitId = null): int
+function insertDynamicDestination(PDO $pdo, array $destination, array $direct, ?int $explicitId = null, bool $review = false): int
 {
-    validateIndependentDestination($pdo, $destination);
+    validateIndependentDestination($pdo, $destination, $review);
     if (!$pdo->inTransaction()) throw new RuntimeException('Destination requires a transaction.');
     [$table, $key, $columns] = $destination;
     if ($explicitId !== null) $direct[$key] = $explicitId;

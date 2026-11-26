@@ -13,6 +13,17 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
         $shortcode = $matches[1];
     }
 
+    if (in_array($shortcode, ['newsletter_modal_signup', 'website_newsletter_signup_form'], true)) {
+        $shortcode = 'newsletter_modal_signup';
+    }
+
+    if ($shortcode === 'find_members') {
+        $defs = [['q','What do you need:','text','Name or Keyword'],['location','Search by location:','text','City or Post Code']];
+        $fields = [];
+        foreach ($defs as $i => $d) $fields[] = ['field_id'=>900000+$i,'field_name'=>$d[0],'field_text'=>$d[1],'field_type'=>$d[2],'field_placeholder'=>$d[3],'field_required'=>false,'default_value'=>'','field_options'=>'','field_sdesc'=>'','field_input_view'=>'1'];
+        return ['form_id'=>0,'form_name'=>'find_members','form_table'=>'form_inquiries','form_element_id'=>'','form_class'=>'','form_style'=>'','fields'=>$fields];
+    }
+
     $publicAliases = [
         'contact_form' => 'public_shortcode_contact_form',
         'member_login' => 'public_shortcode_member_login',
@@ -58,6 +69,8 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
 
     if (!$form) {
         $candidates = [$shortcode];
+        if ($shortcode === 'newsletter_modal_signup') $candidates = ['website_newsletter_signup_form', 'newsletter_modal_signup'];
+        if ($shortcode === 'bootstrap_get_match') $candidates = ['website_lead_form_get_matched','bootstrap_get_match'];
 
         if ($shortcode === 'contact_form') {
             $candidates = ['contact_form_custom', 'nxt_wave_form_custom', 'contact_form'];
@@ -92,6 +105,8 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
              AND form_action_type <> ?
              ORDER BY
                 CASE
+                    WHEN form_name = \'website_newsletter_signup_form\' THEN -2
+                    WHEN form_name = \'website_lead_form_get_matched\' THEN -1
                     WHEN form_name LIKE ? THEN 0
                     WHEN form_name LIKE ? THEN 1
                     ELSE 2
@@ -119,7 +134,8 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
             $fallbackNames = ['signup_free'];
             $fallbackTitle = '%Membership%';
         } else {
-            $fallbackNames = [$shortcode];
+            $fallbackNames = $shortcode === 'bootstrap_get_match' ? ['website_lead_form_get_matched','bootstrap_get_match'] : [$shortcode];
+            if ($shortcode === 'newsletter_modal_signup') $fallbackNames = ['website_newsletter_signup_form', 'newsletter_modal_signup'];
             $fallbackTitle = '';
         }
 
@@ -246,15 +262,21 @@ function publicFormFieldOptions(array $field): array
 
 function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): string
 {
+    if (in_array($shortcode, ['website_newsletter_signup_form', '[form=website_newsletter_signup_form]', '[form=newsletter_modal_signup]'], true)) {
+        $shortcode = 'newsletter_modal_signup';
+    }
     $form = getPublicFormByShortcode($pdo, $shortcode);
 
     if (!$form) {
         return '<div class="contact-form-alert contact-form-alert-error">The Contact Form is not available. Please create or enable the form in Admin → Toolbox → Form Manager.</div>';
     }
 
-    $settingsQuery = $pdo->prepare("SELECT value FROM users_meta WHERE `database`='forms' AND database_id=? AND `key`='form_settings_json' LIMIT 1");
-    $settingsQuery->execute([$form['form_id']]);
-    $settings = json_decode((string)$settingsQuery->fetchColumn(), true) ?: [];
+    $settings = [];
+    if ((int)$form['form_id'] > 0) {
+        $settingsQuery = $pdo->prepare("SELECT value FROM users_meta WHERE `database`='forms' AND database_id=? AND `key`='form_settings_json' LIMIT 1");
+        $settingsQuery->execute([$form['form_id']]);
+        $settings = json_decode((string)$settingsQuery->fetchColumn(), true) ?: [];
+    }
     $action = e($_SERVER['REQUEST_URI'] ?? '');
     $html = '<form id="' . e($form['form_element_id'] ?: $form['form_name']) . '" class="public-dynamic-form ' . e($form['form_class'] ?? '') . '" style="' . e($form['form_style'] ?? '') . '" method="post" action="' . $action . '">';
 
@@ -335,10 +357,12 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $requiredMark = $required ? '<span class="public-form-required" aria-hidden="true">*</span>' : '';
         $help = trim((string)$field['field_sdesc']);
 
-        $html .= '<div class="public-form-field"' . (($settings['label_position'] ?? '') === 'left' ? ' style="display:grid;grid-template-columns: minmax(100px, 1fr) 2fr;gap:10px;align-items:center"' : '') . '>';
+         $rating = $shortcode === 'listing_write_review' && $type === 'radio' && str_starts_with($name, 'rating_');
+        $html .= '<div class="public-form-field' . ($rating ? ' profile-rating-row' : '') . '"' . (($settings['label_position'] ?? '') === 'left' ? ' style="display:grid;grid-template-columns: minmax(100px, 1fr) 2fr;gap:10px;align-items:center"' : '') . '>';
 
         if ($type !== 'hidden') {
-            $html .= '<label for="' . e($id) . '">' . e($label ?: $name) . $requiredMark . '</label>';
+            $newsletterPlaceholderLabel = $shortcode === 'newsletter_modal_signup' && in_array($name, ['yourname', 'first_name', 'inquiry_email', 'email'], true) && $placeholder !== '' && empty($settings['label_position']);
+            $html .= '<label' . ($newsletterPlaceholderLabel ? ' class="newsletter-placeholder-label"' : '') . ' for="' . e($id) . '">' . e($label ?: $name) . $requiredMark . '</label>';
         }
 
         if ($type === 'textarea' || in_array($type, ['richtext', 'richtext_image', 'richtext_elements', 'richtext_media'], true)) {
@@ -358,7 +382,7 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
 
             foreach ($radioOptions as $index => $option) {
                 $choiceId = $id . '-' . $index;
-                $html .= '<label class="public-form-choice" for="' . e($choiceId) . '"><input id="' . e($choiceId) . '" type="radio" name="' . $inputName . '" value="' . e($option) . '"' . ($value === $option ? ' checked' : '') . $requiredAttribute . '> ' . e($option) . '</label>';
+                $html .= '<label class="public-form-choice" for="' . e($choiceId) . '"><input id="' . e($choiceId) . '" type="radio" name="' . $inputName . '" value="' . e($option) . '"' . ($value === $option ? ' checked' : '') . $requiredAttribute . '> ' . ($rating ? '<span aria-hidden="true">★</span><span class="rating-accessible">'.e($option).'</span>' : e($option)) . '</label>';
             }
 
             $html .= '</div>';
@@ -398,15 +422,26 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         require_once __DIR__ . '/directory_search.php';
         $html .= '<label class="directory-category-field">Category' . directoryCategorySelect($pdo, $_GET, 'fields') . '</label>';
     }
-    $buttonLabel = match ($shortcode) { 'newsletter_modal_signup' => 'Subscribe Now', 'find_members' => 'Search Now', default => 'Send Message' };
+    $buttonLabel = match ($shortcode) { 'newsletter_modal_signup' => 'Subscribe Now', 'find_members' => 'Search Now', 'listing_write_review' => 'Submit Review', default => 'Send Message' };
+    if ($shortcode === 'newsletter_modal_signup') {
+        foreach ($form['fields'] as $field) {
+            if (publicFormFieldType($field) === 'submit' && (string)($field['field_input_view'] ?? '1') !== '0' && trim((string)$field['field_text']) !== '') {
+                $buttonLabel = trim((string)$field['field_text']);
+                break;
+            }
+        }
+    }
     $html .= '<button class="public-form-submit" type="submit">' . e($buttonLabel) . '</button>';
     $html .= '</form>';
 
     return $html;
 }
 
-function processPublicFormSubmission(PDO $pdo, string $shortcode): array
+function processPublicFormSubmission(PDO $pdo, string $shortcode, ?int $profileMemberId = null): array
 {
+    if (in_array($shortcode, ['website_newsletter_signup_form', '[form=website_newsletter_signup_form]', '[form=newsletter_modal_signup]'], true)) {
+        $shortcode = 'newsletter_modal_signup';
+    }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         return ['ok' => false, 'message' => 'Invalid request.'];
     }
@@ -517,6 +552,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             continue;
         }
 
+        if ($isEmpty && $shortcode === 'listing_write_review' && str_starts_with($fieldName, 'rating_')) { continue; }
         if ($isEmpty) {
             $values[$fieldName] = is_array($rawValue) ? [] : '';
 
@@ -748,7 +784,26 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             'url_origin' => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 255),
         ];
         $matched = array_replace($matched, array_intersect_key($systemValues, array_flip($writableColumns)));
-        $inquiryId = insertDynamicDestination($pdo, [$destinationTable, $destinationKey, $writableColumns], $matched);
+        $profileReview = $profileMemberId !== null && $shortcode === 'listing_write_review';
+        $profileLead = $profileMemberId !== null && $shortcode === 'bootstrap_get_match';
+        if ($profileReview || $profileLead) {
+            $check = $pdo->prepare('SELECT user_id FROM users_data WHERE user_id=? AND active=2');
+            $check->execute([$profileMemberId]);
+            if (!$check->fetchColumn()) throw new RuntimeException('Member unavailable.');
+            $trusted = $profileReview ? ['user_id'=>$profileMemberId,'member_id'=>(int)($_SESSION['member_id']??0),'review_status'=>0,'review_added'=>date('YmdHis'),'review_token'=>bin2hex(random_bytes(16)),'ip'=>$_SERVER['REMOTE_ADDR']??'','formname'=>$form['form_name']] : ['token'=>bin2hex(random_bytes(16)),'date_added'=>date('YmdHis'),'status'=>'New','formname'=>$form['form_name'],'origin_ip'=>$_SERVER['REMOTE_ADDR']??''];
+            if ($profileReview && $destinationTable === 'users_reviews') {
+                // Legacy enum has no unspecified value; require explicit choice rather than invent it.
+                if (!isset($matched['gender']) || !in_array($matched['gender'], ['male','female'],true)) throw new RuntimeException('Review gender is required by the legacy schema.');
+            }
+            unset($unmatched['__profile_member_id']);
+            $matched = array_replace($matched,array_intersect_key($trusted,array_flip($writableColumns)));
+            if ($profileReview && $destinationTable === 'users_reviews') { foreach ($matched as $k=>$v) if (str_starts_with($k,'rating_') && !in_array((string)$v,['1','2','3','4','5'],true)) throw new RuntimeException('Invalid review rating.'); }
+            $unmatched['__profile_member_id'] = (string)$profileMemberId;
+        }
+        $inquiryId = insertDynamicDestination($pdo, [$destinationTable, $destinationKey, $writableColumns], $matched, null, $profileReview);
+        if ($profileLead && $destinationTable === 'leads') {
+            $pdo->prepare("INSERT INTO lead_matches (lead_id,user_id,lead_matched,lead_points,lead_match_notes,lead_status,match_price,lead_token,lead_matched_by,lead_viewed,lead_type,lead_distance,lead_rating,lead_chosen,lead_response,lead_accepted,lead_updated) VALUES (?,?,?,0,'',0,0,?,'website','','direct','','',0,'','','')")->execute([$inquiryId,$profileMemberId,date('YmdHis'),bin2hex(random_bytes(16))]);
+        }
         $customValues = [];
         foreach ($unmatched as $name => $value) {
             $customValues[] = ['key' => $name, 'value' => $value];
@@ -795,7 +850,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
         return ['ok' => false, 'message' => 'Your message could not be saved. Please try again.'];
     }
 
-    return ['ok' => true, 'message' => 'Thank you! Your message has been sent successfully.'];
+    return ['ok' => true, 'message' => $shortcode === 'newsletter_modal_signup' ? 'Thank you! Your newsletter signup has been saved.' : 'Thank you! Your message has been sent successfully.'];
 }
 
 function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, string $email = ''): string

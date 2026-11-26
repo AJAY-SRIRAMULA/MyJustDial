@@ -5,7 +5,7 @@ require __DIR__ . '/../includes/public_website.php';
 $memberId = (int)($_GET['id'] ?? 0);
 $statement = $pdo->prepare(
     'SELECT u.profession_id, u.first_name, u.last_name, u.company, u.phone_number, u.city,
-            u.state_ln, u.country_ln, u.website, u.about_me, u.quote,
+            u.state_ln, u.country_ln, u.position, u.zip_code, u.website, u.about_me, u.quote,
             u.experience, u.credentials, u.awards, u.filename, u.working_days,
             s.subscription_name
      FROM users_data u
@@ -37,7 +37,19 @@ $categoryQuery->execute([$member['profession_id']]);
 $category = (string)$categoryQuery->fetchColumn();
 $listing = $baseUrl.'/public/member.php?id='.$memberId;
 $message = $listing.'&view=message';
+$isReview = ($_GET['view'] ?? '') === 'review';
 $isMessage = ($_GET['view'] ?? '') === 'message';
+$review = $listing.'&view=review';
+require_once __DIR__.'/../includes/directory_forms.php';
+$shortcode = $isReview ? 'listing_write_review' : 'bootstrap_get_match';
+$result = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['public_form_shortcode']??'') === $shortcode) {
+    $result = processPublicFormSubmission($pdo,$shortcode,$memberId);
+}
+function profileForm(PDO $pdo,string $shortcode,?array $result): string {
+    $notice = $result ? '<p role="status" class="profile-result '.($result['ok']?'success':'error').'">'.e($result['message']).'</p>' : '';
+    return $notice.renderPublicForm($pdo,$shortcode,csrfToken());
+}
 $avatar = $photoPath ?: ($logoPath ?: $baseUrl.'/assets/images/directory-avatar.svg');
 $categoryUrl = $baseUrl.'/public/search.php?category='.(int)$member['profession_id'];
 ?>
@@ -101,38 +113,18 @@ $categoryUrl = $baseUrl.'/public/search.php?category='.(int)$member['profession_
     </nav>
 
 <main class="site-container profile-main">
-<div class="profile-crumb"><a href="<?= e($baseUrl) ?>/public/index.php">Home</a> / <?= e($member['country_ln']) ?> / <a href="<?= e($categoryUrl) ?>"><?= e($category) ?></a> / <a href="<?= e($listing) ?>"><?= e($name) ?></a><?= $isMessage ? ' / Send a Message' : '' ?></div>
-<?php if ($isMessage): ?>
-<div class="profile-message-layout"><aside><section class="profile-box profile-back"><img class="profile-avatar" src="<?= e($avatar) ?>" alt=""><a class="profile-dark" href="<?= e($listing) ?>">Back to Listing</a></section><section class="profile-box profile-share"><h2>♧ Share This Page</h2><div><a href="https://www.facebook.com/sharer/sharer.php?u=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">LinkedIn</a><a href="https://twitter.com/intent/tweet?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">X</a><button type="button" onclick="navigator.clipboard.writeText(location.href)">↗</button></div></section></aside><section class="profile-box profile-message-panel"><h2>Contact <?= e($name) ?></h2><form class="profile-contact-form" onsubmit="event.preventDefault(); this.querySelector('.preview-notice').hidden=false;">
-<input name="name" placeholder="Enter Name" aria-label="Name">
-<input type="email" name="email" placeholder="Enter Email (Required)" aria-label="Email" required>
-<input type="tel" name="phone" placeholder="Enter Phone" aria-label="Phone">
-<select name="day" aria-label="Preferred Reply Day"><option value="">Preferred Reply Day</option><?php foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day): ?><option><?= e($day) ?></option><?php endforeach; ?></select>
-<select name="time" aria-label="Preferred Reply Time"><option value="">Preferred Reply Time</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select>
-<input name="location" placeholder="City or Post Code (Required)" aria-label="City or Post Code" required>
-<textarea name="message" placeholder="Write a message here..." aria-label="Message" required></textarea>
-<button class="profile-blue" type="submit">Send Message</button>
-<p class="preview-notice" hidden>Preview only: message delivery is not connected.</p>
-</form></section></div>
+<div class="profile-crumb"><a href="<?= e($baseUrl) ?>/public/index.php">Home</a> / <?= e($member['country_ln']) ?> / <a href="<?= e($categoryUrl) ?>"><?= e($category) ?></a> / <a href="<?= e($listing) ?>"><?= e($name) ?></a><?= $isReview ? ' / Write a Review' : ($isMessage ? ' / Send a Message' : '') ?></div>
+<?php if ($isMessage || $isReview): ?>
+<div class="profile-message-layout"><aside><section class="profile-box profile-back"><img class="profile-avatar" src="<?= e($avatar) ?>" alt=""><a class="profile-dark" href="<?= e($listing) ?>">Back to Listing</a></section><section class="profile-box profile-share"><h2>♧ Share This Page</h2><div><a href="https://www.facebook.com/sharer/sharer.php?u=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">LinkedIn</a><a href="https://twitter.com/intent/tweet?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">X</a><button type="button" onclick="navigator.clipboard.writeText(location.href)">↗</button></div></section></aside><section class="profile-box profile-message-panel <?= $isReview ? 'profile-review-panel' : 'profile-lead-panel' ?>"><h2><?= $isReview ? 'Write a Review for ' : 'Contact ' ?><?= e($name) ?></h2><?= profileForm($pdo,$shortcode,$result) ?></section></div>
 <?php else: ?>
-<div class="profile-listing-layout"><section><div class="profile-hero"><img class="profile-avatar" src="<?= e($avatar) ?>" alt=""><div class="profile-identity"><h1><?= e($name) ?></h1><p><?= e($category) ?></p><div class="profile-actions"><a class="profile-blue" href="<?= e($message) ?>">♧ Send Message</a><button class="profile-dark" type="button" onclick="alert('Review submission is not connected in this preview.')">✎ Write a Review</button></div></div></div><div class="profile-connection"><strong>MAKE A CONNECTION</strong> <?= e($name) ?> is accepting messages: <a href="<?= e($message) ?>">Send Message</a></div>
+<div class="profile-listing-layout"><section><div class="profile-hero"><img class="profile-avatar" src="<?= e($avatar) ?>" alt=""><div class="profile-identity"><h1><?= e($name) ?></h1><p><?= e($category) ?><br><?= e(implode(' at ',array_filter([$member['position'],$member['company']]))) ?><br><?= e(implode(', ',array_filter([$member['city'],$member['state_ln'],$member['zip_code'],$member['country_ln']]))) ?></p><div class="profile-actions"><a class="profile-dark profile-review-action" href="<?= e($review) ?>">✎ Write a Review</a><a class="profile-blue" href="<?= e($message) ?>">♧ Send Message</a><?php if ($member['phone_number']): ?><button type="button" class="profile-phone" data-phone="<?= e($member['phone_number']) ?>">☎ See Phone Number</button><?php endif; ?></div></div></div><div class="profile-connection"><strong>MAKE A CONNECTION</strong> <?= e($name) ?> is accepting messages: <a href="<?= e($message) ?>">Send Message</a></div>
         <?php if ($member['quote']): ?><blockquote><?= e($member['quote']) ?></blockquote><?php endif; ?>
         <?php if ($member['about_me']): ?><section class="public-member-section"><h2>About</h2><div><?= safeMemberRichText((string)$member['about_me']) ?></div></section><?php endif; ?>
         <section class="public-member-section"><h2>Contact Details</h2><?php if ($member['phone_number']): ?><p>Phone: <?= e($member['phone_number']) ?></p><?php endif; ?><?php if ($websiteUrl !== ''): ?><p>Website: <a href="<?= e($websiteUrl) ?>" rel="noopener" target="_blank"><?= e($websiteUrl) ?></a></p><?php endif; ?></section>
         <?php if (!empty($member['working_days'])): ?><section class="public-member-section"><h2>Hours of Operation</h2><p><?= nl2br(e($member['working_days'])) ?></p></section><?php endif; ?>
         <?php if ($member['credentials']): ?><section class="public-member-section"><h2>Credentials</h2><p><?= nl2br(e($member['credentials'])) ?></p></section><?php endif; ?>
         <?php if ($member['awards']): ?><section class="public-member-section"><h2>Honors &amp; Awards</h2><p><?= nl2br(e($member['awards'])) ?></p></section><?php endif; ?>
-</section><aside><section class="profile-box"><h2>Contact <?= e($name) ?></h2><form class="profile-contact-form" onsubmit="event.preventDefault(); this.querySelector('.preview-notice').hidden=false;">
-<input name="name" placeholder="Enter Name" aria-label="Name">
-<input type="email" name="email" placeholder="Enter Email (Required)" aria-label="Email" required>
-<input type="tel" name="phone" placeholder="Enter Phone" aria-label="Phone">
-<select name="day" aria-label="Preferred Reply Day"><option value="">Preferred Reply Day</option><?php foreach (['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as $day): ?><option><?= e($day) ?></option><?php endforeach; ?></select>
-<select name="time" aria-label="Preferred Reply Time"><option value="">Preferred Reply Time</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select>
-<input name="location" placeholder="City or Post Code (Required)" aria-label="City or Post Code" required>
-<textarea name="message" placeholder="Write a message here..." aria-label="Message" required></textarea>
-<button class="profile-blue" type="submit">Send Message</button>
-<p class="preview-notice" hidden>Preview only: message delivery is not connected.</p>
-</form></section><section class="profile-box profile-share"><h2>♧ Share This Page</h2><div><a href="https://www.facebook.com/sharer/sharer.php?u=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">LinkedIn</a><a href="https://twitter.com/intent/tweet?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">X</a><button type="button" onclick="navigator.clipboard.writeText(location.href)">↗</button></div></section><section class="profile-box"><h2>Related Searches</h2><p><a href="<?= e($categoryUrl) ?>">All <?= e($category) ?></a></p><p><a href="<?= e($categoryUrl.'&location='.rawurlencode($member['country_ln'])) ?>"><?= e($category.' in '.$member['country_ln']) ?></a></p></section></aside></div>
+</section><aside><section class="profile-box profile-lead-panel"><h2>Contact <?= e($name) ?></h2><?= profileForm($pdo,$shortcode,$result) ?></section><section class="profile-box profile-share"><h2>♧ Share This Page</h2><div><a href="https://www.facebook.com/sharer/sharer.php?u=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">Facebook</a><a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">LinkedIn</a><a href="https://twitter.com/intent/tweet?url=<?= e(rawurlencode($listing)) ?>" target="_blank" rel="noopener">X</a><button type="button" onclick="navigator.clipboard.writeText(location.href)">↗</button></div></section><section class="profile-box"><h2>Related Searches</h2><p><a href="<?= e($categoryUrl) ?>">All <?= e($category) ?></a></p><p><a href="<?= e($categoryUrl.'&location='.rawurlencode($member['country_ln'])) ?>"><?= e($category.' in '.$member['country_ln']) ?></a></p></section></aside></div>
 <?php endif; ?>
 </main>
     <footer class="public-footer">
@@ -175,5 +167,9 @@ $categoryUrl = $baseUrl.'/public/search.php?category='.(int)$member['profession_
             </div>
         </div>
     </footer>
-</body>
+<script>
+document.querySelectorAll('.profile-phone').forEach(b=>b.addEventListener('click',()=>{b.textContent=b.dataset.phone}));
+document.querySelectorAll('.profile-review-panel textarea').forEach(t=>{const c=document.createElement('div');c.className='review-counter';t.after(c);const update=()=>{c.textContent='Words : '+(t.value.trim()?t.value.trim().split(/\s+/).length:0)+'     Characters : '+t.value.length};t.addEventListener('input',update);update()});
+document.querySelectorAll('.profile-review-panel form').forEach(form=>{const rows=[...form.querySelectorAll('.profile-rating-row')]; if(!rows.length)return; const header=document.createElement('div');header.className='profile-rating-header';header.innerHTML='<strong>Rate Your Experience (5 is Best)</strong><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>';rows[0].before(header); rows.forEach(row=>{const inputs=[...row.querySelectorAll('input[type=radio]')];const paint=()=>{const selected=Number(inputs.find(i=>i.checked)?.value||0);inputs.forEach(i=>i.parentElement.classList.toggle('rated',Number(i.value)<=selected));};inputs.forEach(i=>i.addEventListener('change',paint));paint();});});
+</script></body>
 </html>

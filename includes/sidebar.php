@@ -52,7 +52,7 @@ $sidebarGroups = [
         'label' => 'Finance',
         'icon' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V13h4v8H3ZM10 21V7h4v14h-4ZM17 21V3h4v18h-4Z"/></svg>',
         'items' => [
-            ['label' => 'Membership Plans'],
+            ['label' => 'Membership Plans', 'url' => $config['base_url'] . '/admin/finance/membership-plans.php', 'active' => $activeMenu === 'finance'],
             ['label' => 'Transaction History'],
             ['label' => 'Search Subscriptions'],
             ['label' => 'Coupon Codes'],

@@ -3,7 +3,6 @@ require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/member_forms.php';
 
-ensureMemberForms($pdo);
 
 $pageTitle = 'Search Members';
 $activeMenu = 'members';
@@ -284,7 +283,7 @@ require __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
                                 <a href="mailto:<?= e($member['email']) ?>">Compose Email</a>
                                 <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=payment-history&id=<?= (int)$member['user_id'] ?>">Payment History</a>
-                                <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=credit-card&id=<?= (int)$member['user_id'] ?>">Update Credit Card</a>
+                                <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=credit-card&id=<?= (int)$member['user_id'] ?>" data-member-dialog="card" data-member-id="<?= (int)$member['user_id'] ?>">Update Credit Card</a>
                                 <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=change-password&id=<?= (int)$member['user_id'] ?>">Change Password</a>
                                 <form method="post" action="<?= e($config['base_url']) ?>/admin/member-actions.php" onsubmit="return confirm('Deactivate this member account?');">
                                     <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
@@ -292,7 +291,7 @@ require __DIR__ . '/../includes/header.php';
                                     <input type="hidden" name="action" value="delete-account">
                                     <button type="submit" class="member-delete-action">Delete Account</button>
                                 </form>
-                                <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=clone&id=<?= (int)$member['user_id'] ?>">Clone Account</a>
+                                <a href="<?= e($config['base_url']) ?>/admin/member-actions.php?action=clone&id=<?= (int)$member['user_id'] ?>" data-member-dialog="clone" data-member-id="<?= (int)$member['user_id'] ?>">Clone Account</a>
                             </div>
                         </details>
                     </td>
@@ -318,7 +317,42 @@ require __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 </div>
 <div class="floating-help"><span>☻</span><a href="#">HELP CENTER</a></div>
+<dialog id="memberCloneDialog" class="member-reference-dialog member-clone-dialog">
+    <form method="post" action="<?= e($config['base_url']) ?>/admin/member-actions.php">
+        <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
+        <input type="hidden" name="action" value="clone">
+        <input type="hidden" name="member_id" id="cloneMemberId">
+        <div class="clone-warning-icon">!</div>
+        <h2>Clone Account</h2>
+        <p>Are you sure you want to clone this member?</p>
+        <div class="reference-dialog-buttons"><button type="button" data-close-dialog>No, cancel</button><button type="submit" class="clone-confirm">Yes, continue</button></div>
+    </form>
+</dialog>
+<dialog id="memberCardDialog" class="member-reference-dialog member-card-dialog">
+    <h2>Add Credit Card</h2>
+    <div class="card-reference-panel">
+        <label for="cardDemoName">Name on Card</label>
+        <input id="cardDemoName" placeholder="Name on Card" autocomplete="off" disabled>
+        <div class="card-test-notice"><button type="button" class="card-notice-close" aria-label="Dismiss test notice">×</button><h3><i class="fa fa-info-circle"></i> Payment Processing is in TEST MODE</h3><p><em>After connecting a custom domain, you can add your own payment gateway.</em></p>
+            <div class="card-test-details"><strong>Use the following test card details:</strong><p><i class="fa fa-credit-card"></i> Card: 4242 4242 4242 4242</p><p><i class="fa fa-calendar-o"></i> Expiration: 12/35 &nbsp; <i class="fa fa-lock"></i> CVC: 123</p></div>
+        </div>
+        <label>Card Number</label><label>Expiration Date / Security Code</label>
+        <input placeholder="Card number" disabled aria-label="Card number unavailable">
+        <p class="card-reference-error">Enter a valid credit card to continue</p>
+        <small>Preview only — no connected member card gateway.</small>
+    </div>
+    <div class="reference-dialog-buttons"><button type="button" data-close-dialog>Cancel</button><button type="button" class="card-confirm" disabled>Save credit card &amp; continue</button></div>
+</dialog>
 <script>
+document.querySelectorAll('[data-member-dialog]').forEach(link => link.addEventListener('click', event => {
+    event.preventDefault();
+    const clone = link.dataset.memberDialog === 'clone';
+    if (clone) document.getElementById('cloneMemberId').value = link.dataset.memberId;
+    link.closest('details').open = false;
+    document.getElementById(clone ? 'memberCloneDialog' : 'memberCardDialog').showModal();
+}));
+document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+document.querySelector('.card-notice-close').addEventListener('click', event => event.currentTarget.parentElement.hidden = true);
 document.getElementById('selectMembers')?.addEventListener('change', function () {
     document.querySelectorAll('.members-table tbody input[type="checkbox"]').forEach(function (checkbox) {
         checkbox.checked = document.getElementById('selectMembers').checked;
