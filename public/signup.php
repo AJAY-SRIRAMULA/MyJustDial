@@ -619,7 +619,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($destination[0] !== 'users_data') {
-                saveConfiguredMemberRecord($pdo, $destination, $newUserId, array_merge($userDataValues, ['email' => $email, 'subscription_id' => (int)$selectedPlan['subscription_id'], 'user_consent' => $consentValue]), $metaValues);
+                if ($destination[1] === 'user_id') {
+                    saveConfiguredMemberRecord($pdo, $destination, $newUserId, array_replace($customValues, $userDataValues, ['email' => $email, 'user_consent' => $consentValue]), $metaValues);
+                } else {
+                    saveIndependentMemberDestination($pdo, $destination, $newUserId, array_replace($customValues, ['email' => $email, 'user_consent' => $consentValue]));
+                }
             }
             if ($verifiedPayment) {
                 $paymentInsert = $pdo->prepare('INSERT INTO membership_test_payments (payment_id, order_id, user_id, subscription_id, amount_paise, billing_cycle) VALUES (?, ?, ?, ?, ?, ?)');
@@ -633,7 +637,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->rollBack();
             }
 
-            error_log('Signup destination: ' . $exception->getMessage());
+            error_log('Signup destination [dynamic-v4]: ' . $exception->getMessage());
             $errors[] = 'Your account could not be created. Please try again.';
         }
     }

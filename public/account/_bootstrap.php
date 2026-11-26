@@ -167,10 +167,18 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
     $destinationRecord = null;
     $destinationMeta = [];
     try {
-        [$destinationTable, $destinationKey, $destinationColumns] = configuredFormDestination($pdo, $formName, 'users_data', 'user_id');
-        if ($destinationTable !== 'users_data' && in_array('user_id', $destinationColumns, true)) {
-            $recordQuery = $pdo->prepare("SELECT * FROM `$destinationTable` WHERE user_id = ? LIMIT 2");
-            $recordQuery->execute([(int)$member['user_id']]);
+        $configuredDestination = configuredFormDestination($pdo, $formName, 'users_data', 'user_id');
+        [$destinationTable, $destinationKey, $destinationColumns] = $configuredDestination;
+        if ($destinationTable !== 'users_data') {
+            if ($destinationKey === 'user_id') {
+                $recordQuery = $pdo->prepare("SELECT * FROM `$destinationTable` WHERE user_id = ? LIMIT 2");
+                $recordQuery->execute([(int)$member['user_id']]);
+            } else {
+                validateIndependentDestination($pdo, $configuredDestination);
+                $recordId = independentMemberDestinationId($pdo, $configuredDestination, (int)$member['user_id']);
+                $recordQuery = $pdo->prepare("SELECT * FROM `$destinationTable` WHERE `$destinationKey` = ? LIMIT 1");
+                $recordQuery->execute([$recordId]);
+            }
             $records = $recordQuery->fetchAll(PDO::FETCH_ASSOC);
             if (count($records) === 1) {
                 $destinationRecord = $records[0];
@@ -269,7 +277,7 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
             }
             $value = memberFieldValue($pdo, $member, $name, $section);
             if ($destinationRecord !== null) {
-                if (in_array($name, memberDefaultFieldNames($section), true) && array_key_exists($name, $destinationRecord)) $value = (string)$destinationRecord[$name];
+                if (array_key_exists($name, $destinationRecord)) $value = (string)$destinationRecord[$name];
                 elseif (array_key_exists($name, $destinationMeta)) $value = (string)$destinationMeta[$name];
             }
             if ($value === '') $value = (string)($field['default_value'] ?? '');

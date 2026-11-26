@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/widget_components.php";
 
 function newWidgetShortCode(PDO $pdo): string
 {
@@ -167,6 +168,10 @@ function composeWidgetContent(PDO $pdo, array $widget, array $seen = [], int $de
         return $composition['html'];
     }, $html);
 
+    $html = preg_replace_callback(widgetComponentPattern(), static function ($match) use ($pdo) {
+        $component = loadWidgetComponent($match[1]);
+        return $component ? ($component['render'])($pdo) : '<span class="widget-unavailable">Widget component unavailable</span>';
+    }, $html);
     $combinedCss = implode("\n", array_filter([$css, ...$nestedCss]));
     $combinedJs = implode("\n", array_filter([$js, ...$nestedJs]));
     return ['html' => $html, 'css' => $combinedCss, 'js' => $combinedJs];

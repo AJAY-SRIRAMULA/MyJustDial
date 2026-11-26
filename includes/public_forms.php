@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/form_fields.php';
+require_once __DIR__ . '/form_destination.php';
 require_once __DIR__ . '/recaptcha.php';
 require_once __DIR__ . '/custom_components.php';
 require_once __DIR__ . '/widgets.php';
@@ -618,6 +619,21 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
         }
     }
 
+    // Validate only components attached to enabled form widgets.
+    foreach ($form['fields'] as $configuredField) {
+        if (publicFormFieldType($configuredField) !== 'html' || (string)($configuredField['field_input_view'] ?? '1') === '0') continue;
+        $content = (string)$configuredField['field_text'] . ' ' . (string)($configuredField['field_ldesc'] ?? '');
+        try {
+            foreach (widgetComponentsInContent($pdo, $content) as $component) {
+                if (isset($component['validate'])) {
+                    $values += ($component['validate'])($pdo, $submitted);
+                }
+            }
+        } catch (InvalidArgumentException $exception) {
+            $errors[] = $exception->getMessage();
+        }
+    }
+
     // Save values submitted by controls rendered inside configured Custom HTML fields.
     // Verify the field ID against this form; do not require a particular PHP filename.
     $customHtmlFieldIds = [];
@@ -705,100 +721,37 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
     try {
         $pdo->beginTransaction();
 
-        if ($destinationTable === 'form_inquiries') {
-            $insert = $pdo->prepare(
-                'INSERT INTO form_inquiries (
-                    inquiry_email, inquiry_ip, yourname, phone, comments,
-                    inquiry_user_id, inquiry_form, inquiry_content, inquiry_status,
-                    inquiry_archived, inquiry_notes, url_origin, date_submitted, user_consent
-                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?)'
-            );
-            $insert->execute([
-                $emailValue,
-                substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 40),
-                $nameValue,
-                $phoneValue,
-                $commentsValue,
-                $form['form_name'],
-                json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
-                'New',
-                '',
-                substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 255),
-                date('YmdHis'),
-                ''
-            ]);
-            $inquiryId = $pdo->lastInsertId();
-        } else {
-            $columnQuery = $pdo->prepare(
-                'SELECT COLUMN_NAME, COLUMN_KEY, EXTRA, IS_NULLABLE, COLUMN_DEFAULT
-                 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? ORDER BY ORDINAL_POSITION'
-            );
-            $columnQuery->execute([$destinationTable]);
-            $destinationColumns = $columnQuery->fetchAll(PDO::FETCH_ASSOC);
-            $insertData = array_diff_key($values, array_fill_keys(array_column($customValues, 'key'), true));
-            $insertData += [
-                'inquiry_ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 40),
-                'inquiry_user_id' => 0, 'inquiry_status' => 'New', 'inquiry_archived' => 0,
-                'inquiry_notes' => '', 'user_consent' => '',
-                'email' => $emailValue, 'inquiry_email' => $emailValue,
-                'name' => $nameValue, 'yourname' => $nameValue, 'full_name' => $nameValue,
-                'phone' => $phoneValue, 'comments' => $commentsValue, 'message' => $commentsValue,
-                'inquiry_content' => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
-                'inquiry_form' => (string)$form['form_name'], 'date_submitted' => date('YmdHis'),
-                'created_at' => date('Y-m-d H:i:s'), 'date_added' => date('YmdHis'),
-                'url_origin' => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 255)
-            ];
-            $normalizedInsertData = [];
-            foreach ($insertData as $dataKey => $dataValue) {
-                $normalizedKey = strtolower(trim((string)$dataKey));
-                $normalizedKey = preg_replace('/[^a-z0-9]+/', '_', $normalizedKey);
-                $normalizedInsertData[$normalizedKey] = $dataValue;
+        [$destinationTable, $destinationKey, $writableColumns] = configuredFormDestination(
+            $pdo, (string)$form['form_name'], 'form_inquiries', 'inquiry_id'
+        );
+        if (preg_match('/^(admin|bd_api|users_meta$|forms$|form_fields$|users_data$|subscription|membership|data_widgets|website_)/i', $destinationTable)) {
+            throw new RuntimeException('This destination is not permitted for public inquiries.');
+        }
+        [$matched, $unmatched] = splitDestinationFields($writableColumns, $destinationKey, $values);
+        $aliases = ['inquiry_email' => 'email', 'phone' => 'phone_number', 'enter_a_message' => 'comments'];
+        foreach ($aliases as $source => $target) {
+            if (array_key_exists($source, $unmatched) && in_array($target, $writableColumns, true) && !array_key_exists($target, $matched)) {
+                $matched[$target] = $unmatched[$source];
+                unset($unmatched[$source]);
             }
-            foreach ($form['fields'] as $configuredField) {
-                $fieldKey = trim((string)($configuredField['field_name'] ?? ''));
-                $fieldLabel = trim((string)($configuredField['field_text'] ?? ''));
-                if ($fieldKey === '' || !array_key_exists($fieldKey, $values)) {
-                    continue;
-                }
-                foreach ([$fieldKey, $fieldLabel] as $candidateKey) {
-                    $normalizedKey = strtolower(trim($candidateKey));
-                    $normalizedKey = preg_replace('/[^a-z0-9]+/', '_', $normalizedKey);
-                    if ($normalizedKey !== '') {
-                        $normalizedInsertData[$normalizedKey] = $values[$fieldKey];
-                    }
-                }
-            }
-            $matched = [];
-            foreach ($destinationColumns as $column) {
-                $columnName = (string)$column['COLUMN_NAME'];
-                if (($column['COLUMN_KEY'] === 'PRI' && stripos((string)$column['EXTRA'], 'auto_increment') !== false)
-                    || stripos((string)$column['EXTRA'], 'generated') !== false) {
-                    continue;
-                }
-                if (array_key_exists($columnName, $insertData)) {
-                    $columnValue = $insertData[$columnName];
-                } else {
-                    $normalizedColumn = strtolower(trim($columnName));
-                    $normalizedColumn = preg_replace('/[^a-z0-9]+/', '_', $normalizedColumn);
-                    if (array_key_exists($normalizedColumn, $normalizedInsertData)) {
-                        $columnValue = $normalizedInsertData[$normalizedColumn];
-                    } elseif ($column['IS_NULLABLE'] === 'NO' && $column['COLUMN_DEFAULT'] === null) {
-                        throw new RuntimeException('A required destination column has no matching form field: ' . $columnName);
-                    } else {
-                        continue;
-                    }
-                }
-                $matched[$columnName] = is_array($columnValue) ? json_encode($columnValue, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) : $columnValue;
-            }
-            if (!$matched) {
-                throw new RuntimeException('No submitted form values match the selected destination table.');
-            }
-            $names = array_keys($matched);
-            $quotedNames = array_map(static fn($name) => '`' . str_replace('`', '``', $name) . '`', $names);
-            $placeholders = implode(',', array_fill(0, count($names), '?'));
-            $genericInsert = $pdo->prepare('INSERT INTO `' . str_replace('`', '``', $destinationTable) . '` (' . implode(',', $quotedNames) . ') VALUES (' . $placeholders . ')');
-            $genericInsert->execute(array_values($matched));
-            $inquiryId = $pdo->lastInsertId();
+        }
+        $systemValues = [
+            'inquiry_ip' => substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 40),
+            'inquiry_user_id' => 0,
+            'inquiry_status' => 'New',
+            'inquiry_archived' => 0,
+            'inquiry_notes' => '',
+            'user_consent' => '',
+            'inquiry_form' => (string)$form['form_name'],
+            'inquiry_content' => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+            'date_submitted' => date('YmdHis'),
+            'url_origin' => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 255),
+        ];
+        $matched = array_replace($matched, array_intersect_key($systemValues, array_flip($writableColumns)));
+        $inquiryId = insertDynamicDestination($pdo, [$destinationTable, $destinationKey, $writableColumns], $matched);
+        $customValues = [];
+        foreach ($unmatched as $name => $value) {
+            $customValues[] = ['key' => $name, 'value' => $value];
         }
 
         if ($customValues) {
@@ -838,7 +791,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode): array
             $pdo->rollBack();
         }
 
-        error_log('Public form submission failed: ' . $exception->getMessage());
+        error_log('Public form submission failed [dynamic-v4]: ' . $exception->getMessage());
         return ['ok' => false, 'message' => 'Your message could not be saved. Please try again.'];
     }
 
