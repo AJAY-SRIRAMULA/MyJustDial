@@ -30,7 +30,7 @@ if (!isset($allowedForms[$section]) || $allowedForms[$section] !== $formName) {
     http_response_code(400);
     exit('Invalid member form.');
 }
-$formName = resolveMemberFormName($pdo, $formName);
+require_once __DIR__ . '/../../includes/membership_runtime.php';
 
 $memberQuery = $pdo->prepare('SELECT * FROM users_data WHERE user_id = ? LIMIT 1');
 $memberQuery->execute([$memberId]);
@@ -44,6 +44,7 @@ if (!$isAdminSave && !isActiveMemberRecord($member['active'])) {
     exit('This member account is not active.');
 }
 
+$formName = membershipAccountForm($pdo, $member, $section, $formName);
 $fieldQuery = $pdo->prepare('SELECT * FROM form_fields WHERE form_name = ? ORDER BY field_order, field_id');
 $fieldQuery->execute([$formName]);
 $configured = $fieldQuery->fetchAll();
@@ -336,11 +337,15 @@ try {
         $updatePhoto->execute([$filename, '/images/' . $filename, date('YmdHis'), '', '', $photoId]);
     }
 
+    if (!$alternateDestination) {
+        [$matchedCustom, $metaUpdates] = splitDestinationFields($destination[2], $destination[1], $metaUpdates);
+        $updates = array_replace($matchedCustom, $updates);
+    }
     if ($updates && !$alternateDestination) {
         $sets = [];
         $values = [];
         foreach ($updates as $column => $value) {
-            if (!in_array($column, $columns, true) && $column !== 'filename') continue;
+            if (!in_array($column, $destination[2], true)) continue;
             $sets[] = "`$column` = ?";
             $values[] = $value;
         }
@@ -365,6 +370,11 @@ if (is_array($widgetSubmittedFields)) {
 if ($alternateDestination) {
     saveConfiguredMemberRecord($pdo, $destination, $memberId, $updates, $metaUpdates);
 } else {
+    [$matchedWidget, $metaUpdates] = splitDestinationFields($destination[2], $destination[1], $metaUpdates);
+    if ($matchedWidget) {
+        $sets = array_map(static fn($name) => '`' . str_replace('`', '``', $name) . '` = ?', array_keys($matchedWidget));
+        $pdo->prepare('UPDATE users_data SET ' . implode(', ', $sets) . ' WHERE user_id = ?')->execute(array_merge(array_values($matchedWidget), [$memberId]));
+    }
     foreach ($metaUpdates as $key => $value) saveMemberMeta($pdo, $memberId, $key, $value);
 }
     if ($section === 'listing' && $hasSpecialtyField && tableExists($pdo, 'rel_services')) {
@@ -376,6 +386,10 @@ if ($alternateDestination) {
             $validServices = $pdo->prepare("SELECT service_id FROM list_services WHERE service_id IN ($placeholders) AND profession_id = ?");
             $validServices->execute(array_merge($serviceIds, [(int)($updates['profession_id'] ?? $member['profession_id'])]));
             $serviceIds = array_map('intval', $validServices->fetchAll(PDO::FETCH_COLUMN));
+        }
+        $limit = membershipCategoryLimit(membershipPlanFor($pdo, (int)$member['subscription_id']));
+        if ($limit !== null && count($serviceIds) > $limit) {
+            throw new DomainException('Your membership allows a maximum of ' . $limit . ' sub-level categories.');
         }
         $removeServices = $pdo->prepare('DELETE FROM rel_services WHERE user_id = ? AND specialty = 1');
         $removeServices->execute([$memberId]);
@@ -416,6 +430,6 @@ if ($alternateDestination) {
         if (!empty($saved['temporary']) && is_file($saved['temporary'])) unlink($saved['temporary']);
     }
     error_log('Member form save: ' . $exception->getMessage());
-    flash('danger', 'Your changes could not be saved. Please try again.');
+    flash('danger', $exception instanceof DomainException ? $exception->getMessage() : 'Your changes could not be saved. Please try again.');
 }
 redirect('/public/account/' . $section . '.php' . ($isAdminSave ? '?admin_member=' . $memberId : ''));

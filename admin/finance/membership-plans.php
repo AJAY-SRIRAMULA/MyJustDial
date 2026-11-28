@@ -20,6 +20,9 @@ $plans=$pdo->query('SELECT s.*, (SELECT COUNT(*) FROM users_data u WHERE u.subsc
 $byId=array_column($plans,null,'subscription_id');
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  verifyCsrf(); $id=(int)($_POST['id']??0); $action=$_POST['action']??''; $uploaded=[];
+ $originalId=$id; $returnUrl=$url;
+ $tab=max(0,min(4,(int)($_POST['active_tab']??0)));
+ if($action==='save' && $originalId && isset($byId[$originalId])) $returnUrl=$url.'?edit='.$originalId.'&tab='.$tab;
  try {
   $pdo->beginTransaction();
   // Serialize plan mutations, including member moves and deletion.
@@ -74,10 +77,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   } else throw new RuntimeException('Invalid action.');
   $pdo->commit();flash('success','Membership plan changes saved.');
  } catch(Throwable $ex){if($pdo->inTransaction())$pdo->rollBack();foreach($uploaded as $path)unlink($path);flash('error',$ex instanceof PDOException?'Database rejected the change. No changes were saved.':$ex->getMessage());}
- header('Location: '.$url);exit;
+ header('Location: '.$returnUrl, true, 303);exit;
 }
 $edit=(int)($_GET['edit']??0);if($edit&&!isset($byId[$edit])){http_response_code(404);exit('Membership plan not found.');}
-$extraHead='<link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/47.6.0/ckeditor5.css"><link rel="stylesheet" href="'.e($config['base_url']).'/assets/css/membership-plans.css">';
+$extraHead='<link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/48.5.1/ckeditor5.css"><link rel="stylesheet" href="'.e($config['base_url']).'/assets/css/membership-plans.css">';
 require __DIR__.'/../../includes/header.php';
 function mpDisplaySections($tab,$sections){
  $all=[];foreach($sections as $items){if(!is_array($items))continue;foreach($items as $field){if(is_array($field)&&isset($field['key']))$all[$field['key']]=$field;}}
@@ -97,14 +100,14 @@ function mpDisplaySections($tab,$sections){
 }
 function mpEditor($plan,$meta,$fields,$plans,$types,$url,$config){
  global $features,$postDetails;
-$id=(int)($plan['subscription_id']??0);$tabs=['Sign Ups & Upgrades','Profile Page',"Member’s Dashboard",'Search Visibility','Post Publishing'];
+$id=(int)($plan['subscription_id']??0);$activeTab=$id?max(0,min(4,(int)($_GET['tab']??0))):0;$tabs=['Sign Ups & Upgrades','Profile Page',"Member’s Dashboard",'Search Visibility','Post Publishing'];
 ?>
 <form class="mp-editor" method="post" enctype="multipart/form-data" action="<?=e($url)?>">
-<input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="action" value="save">
+<input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="action" value="save"><input type="hidden" name="active_tab" value="<?=$activeTab?>">
 <div class="mp-bar"><strong><?=$id?'Edit Membership Plan':'Add Membership Plan'?></strong><?php if($id):?><a class="mp-blue mp-button" target="_blank" href="<?=e($config['base_url'])?>/public/signup.php?plan_id=<?=$id?>">Sign Up Page <i class="fa fa-external-link"></i></a><?php endif;?><input class="mp-setting-search" placeholder="Search by Keyword" aria-label="Search settings"><button class="mp-green">Save Changes</button><?php if(!$id):?><button type="button" class="mp-red mp-close" data-close>× Close</button><?php endif;?></div>
 <label class="mp-name"><span><b>*</b> Membership Plan Name</span><input name="name" required maxlength="255" value="<?=e($plan['subscription_name']??'')?>"></label>
-<div class="mp-tabs" role="tablist"><?php foreach($tabs as $i=>$tab):?><button type="button" data-tab="<?=$i?>" class="<?=$i===0?'selected':''?>"><?=e($tab)?></button><?php endforeach;?></div>
-<?php foreach($fields as $i=>$sections):?><section class="mp-tab" data-panel="<?=$i?>" <?=$i?'hidden':''?>>
+<div class="mp-tabs" role="tablist"><?php foreach($tabs as $i=>$tab):?><button type="button" data-tab="<?=$i?>" class="<?=$i===$activeTab?'selected':''?>"><?=e($tab)?></button><?php endforeach;?></div>
+<?php foreach($fields as $i=>$sections):?><section class="mp-tab" data-panel="<?=$i?>" <?=$i!==$activeTab?'hidden':''?>>
 <?php foreach($i===4?[]:mpDisplaySections($i,$sections) as $section=>$items):?><h3><?=e($section)?></h3><?php if($i===1&&$section==='Select What Displays in the "Overview" Tab'):?><div class="mp-profile-info"><i class="fa fa-info-circle"></i> Select the order of items that display in the main "Overview" tab on member profile pages</div><div class="mp-overview-grid"><?php $overviewNames=['location_map_order'=>'Location Map','user_quote_order'=>'User Quote','contact_details_order'=>'Contact Details','listing_details_order'=>'Listing Details','about_order'=>'About Me','list_services_areas_order'=>'List Service Areas'];$positions=[];foreach($items as $item){$key=$item['key'];$position=(int)($meta[$key]??$item['default']);if($position>=1&&$position<=6)$positions[$position]=$key;}for($position=1;$position<=6;$position++):?><label>Position <?=$position?><select name="overview_position[<?=$position?>]"><option value="">Hide Section</option><?php foreach($overviewNames as $key=>$label):?><option value="<?=e($key)?>" <?=($positions[$position]??'')===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><?php endfor;?></div><?php continue;endif;?><div class="mp-fields" data-section="<?=e($section)?>"><?php foreach($items as $f):$k=$f['key'];$v=(string)(($f['meta']?$meta[$k]??null:$plan[$k]??null)??$f['default']);if(in_array($f['type'],['money','number','color'])&&$v==='')$v=$f['default'];$n='settings['.$k.']';
 if($i===1 && $k==='enable_sending_chat_messages')continue;
 if($i===2 && $k==='contact_required')continue;
@@ -157,7 +160,7 @@ $q=trim((string)($_GET['q']??''));$filtered=array_values(array_filter($plans,fn(
 <dialog class="mp-modal" id="mp-new"><?php mpEditor([],[],$fields,$plans,$types,$url,$config);?></dialog>
 <?php foreach(array_slice($filtered,($page-1)*20,20) as $p):$id=(int)$p['subscription_id'];foreach(['clone'=>'Clone','move'=>'Move Members','delete'=>'Delete'] as $action=>$label):?><dialog class="mp-action-modal" id="mp-<?=$action?>-<?=$id?>"><form method="post"><h2><?=e($label)?></h2><p><?=e($p['subscription_name'])?></p><input type="hidden" name="csrf_token" value="<?=e(csrfToken())?>"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="action" value="<?=$action?>"><?php if($action==='move'):?><label>Destination plan<select name="target" required><option value="">Select plan</option><?php foreach($plans as $dest):if($dest['subscription_id']===$p['subscription_id'])continue;?><option value="<?=e($dest['subscription_id'])?>"><?=e($dest['subscription_name'])?></option><?php endforeach;?></select></label><p>Moves member plan assignments only; does not change billing subscriptions.</p><?php elseif($action==='delete'):?><p>Only plans with no members can be deleted.</p><?php else:?><p>Create a copy of the plan and its settings.</p><?php endif;?><button class="<?=$action==='delete'?'mp-red':'mp-green'?>"><?=e($label)?></button> <button type="button" data-close>Cancel</button></form></dialog><?php endforeach;endforeach;endif;?></div>
 
-<script>window.mpEditorLicense=<?=json_encode((string)(getenv('CKEDITOR_LICENSE_KEY') ?: ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)?>;</script>
-<script src="<?=e($config['base_url'])?>/assets/js/membership-plans.js?v=2"></script>
-<script async src="https://cdn.ckeditor.com/ckeditor5/47.6.0/ckeditor5.umd.js" onload="initializeMembershipEditors()"></script>
+<script>window.mpEditorLicense=<?= json_encode((string)(getenv('CKEDITOR_LICENSE_KEY') ?: "eyJhbGciOiJFUzI1NiJ9.eyJleHAiOjE3OTYwODMxOTksImp0aSI6IjFjYTY4ZDY5LTA0YzctNDQ1Zi1iY2QyLTc1YjE3NGJkNzAzMyIsInVzYWdlRW5kcG9pbnQiOiJodHRwczovL3Byb3h5LWV2ZW50LmNrZWRpdG9yLmNvbSIsImRpc3RyaWJ1dGlvbkNoYW5uZWwiOlsiY2xvdWQiLCJkcnVwYWwiLCJzaCJdLCJ3aGl0ZUxhYmVsIjp0cnVlLCJsaWNlbnNlVHlwZSI6InRyaWFsIiwiZmVhdHVyZXMiOlsiKiJdLCJ2YyI6IjM5ZGFjN2UzIn0.d93BmN1ZFDuJtjLutQ8KNRdmIBR6pF886a4ktd4jv-OXCB22ipdbsL90FYeDbKCeWllq4qibKbXD5X7oGavMJQ"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+<script src="<?=e($config['base_url'])?>/assets/js/membership-plans.js?v=4"></script>
+<script async src="https://cdn.ckeditor.com/ckeditor5/48.5.1/ckeditor5.umd.js" onload="initializeMembershipEditors()"></script>
 <?php require __DIR__.'/../../includes/footer.php';?>

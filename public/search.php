@@ -5,6 +5,7 @@ require __DIR__ . '/../includes/public_website.php';
 
 require_once __DIR__.'/../includes/directory_forms.php';
 require_once __DIR__.'/../includes/directory_search.php';
+require_once __DIR__.'/../includes/membership_runtime.php';
 ensureDirectoryWidgets($pdo);
 $directoryNotice='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
@@ -62,7 +63,7 @@ if ($serviceId) {
 $profileId = filter_input(INPUT_GET, 'profile', FILTER_VALIDATE_INT) ?: 0;
 $articleId = filter_input(INPUT_GET, 'article', FILTER_VALIDATE_INT) ?: 0;
 $results = [];
-$sortOptions = ['recent'=>'u.featured DESC, u.user_id DESC','name_asc'=>'u.first_name ASC,u.last_name ASC,u.user_id ASC','name_desc'=>'u.first_name DESC,u.last_name DESC,u.user_id DESC'];
+$sortOptions = ['recent'=>membershipPrioritySql() . ', u.featured DESC, u.user_id DESC','name_asc'=>'u.first_name ASC,u.last_name ASC,u.user_id ASC','name_desc'=>'u.first_name DESC,u.last_name DESC,u.user_id DESC'];
 $sort = directoryText($_GET, 'sort');
 if (!isset($sortOptions[$sort])) $sort = 'recent';
 $page = max(1,(int)($_GET['page'] ?? 1));
@@ -76,11 +77,12 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
     $profileQuery = $pdo->prepare(
         "SELECT user_id, first_name, last_name, company, city, state_ln,
                 address1, zip_code, about_me, search_description,
-                phone_number, website,
-                (SELECT p.file FROM users_photo p WHERE p.user_id = users_data.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
-                (SELECT p.original FROM users_photo p WHERE p.user_id = users_data.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo_original
-         FROM users_data
-         WHERE user_id = ? AND active = 2
+                CASE WHEN EXISTS (SELECT 1 FROM subscription_types mp WHERE mp.subscription_id=u.subscription_id AND mp.show_phone=0) THEN '' ELSE phone_number END AS phone_number,
+                CASE WHEN EXISTS (SELECT 1 FROM subscription_types mp WHERE mp.subscription_id=u.subscription_id AND mp.website_link=0) THEN '' ELSE website END AS website,
+                (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
+                (SELECT p.original FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo_original
+         FROM users_data u
+         WHERE user_id = ? AND active = 2 AND " . membershipVisibilitySql() . "
          LIMIT 1"
     );
 
@@ -100,7 +102,7 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
     $article = $articleQuery->fetch() ?: null;
     
 } elseif (tableExists($pdo, 'users_data')) {
-    $conditions = ['u.active = 2'];
+    $conditions = ['u.active = 2', membershipVisibilitySql()];
     if ($invalidCategory) $conditions[] = '1 = 0';
     $parameters = [];
 
@@ -147,7 +149,7 @@ if ($profileId > 0 && tableExists($pdo, 'users_data')) {
     $page = min($page,max(1,(int)ceil($total/12)));
     $offset = ($page-1)*12;
     $sql = "SELECT u.user_id, u.first_name, u.last_name, u.company, u.city, u.state_ln,
-                   u.search_description, u.about_me, u.phone_number, u.zip_code, u.country_ln,
+                   u.search_description, u.about_me, CASE WHEN EXISTS (SELECT 1 FROM subscription_types mp WHERE mp.subscription_id=u.subscription_id AND mp.show_phone=0) THEN '' ELSE u.phone_number END AS phone_number, u.zip_code, u.country_ln,
                    (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
                 (SELECT p.original FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo_original
             FROM users_data u

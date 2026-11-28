@@ -463,6 +463,9 @@ function memberFieldValue(PDO $pdo, array $member, string $fieldName, ?string $s
     ];
 
     if ($section !== null && !in_array($fieldName, memberDefaultFieldNames($section), true)) {
+        require_once __DIR__ . '/form_destination.php';
+        [$direct] = splitDestinationFields(array_keys($member), 'user_id', [$fieldName => $member[$fieldName] ?? '']);
+        if (array_key_exists($fieldName, $direct)) return (string)$direct[$fieldName];
         return memberMetaValue($pdo, (int)$member['user_id'], $fieldName);
     }
 

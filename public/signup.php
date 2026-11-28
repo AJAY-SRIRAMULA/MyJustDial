@@ -4,15 +4,10 @@ require __DIR__ . '/../includes/public_website.php';
 require __DIR__ . '/../includes/public_forms.php';
 require_once __DIR__ . '/../includes/form_destination.php';
 require_once __DIR__ . '/../includes/razorpay_test.php';
+require_once __DIR__ . '/../includes/membership_plans.php';
 
 $settings = getPublicWebsiteSettings($pdo);
 $baseUrl = $config['base_url'];
-
-$planNames = [
-    1 => 'Free',
-    2 => 'Standard',
-    3 => 'Premium',
-];
 
 $planId = filter_input(INPUT_GET, 'plan_id', FILTER_VALIDATE_INT);
 
@@ -25,7 +20,7 @@ if (!tableExists($pdo, 'subscription_types')) {
 }
 
 $planStatement = $pdo->prepare(
-    "SELECT subscription_id, subscription_name, monthly_amount, yearly_amount
+    "SELECT subscription_id, subscription_name, monthly_amount, yearly_amount, profile_type
      FROM subscription_types
      WHERE subscription_id = ?
        AND subscription_type = 'member'
@@ -39,12 +34,21 @@ if (!$selectedPlan) {
     redirect('/public/membership.php');
 }
 
-$selectedPlanName = $planNames[(int)$selectedPlan['subscription_id']]
-    ?? preg_replace('/^Membership Plan\s+\d+$/i', 'Membership', trim($selectedPlan['subscription_name']));
-
-$isFreeSignup = (int)$selectedPlan['subscription_id'] === 1;
-$signupShortcode = $isFreeSignup ? 'signup_free' : 'signup_paid';
+$planMeta = mpMeta($pdo, (int)$selectedPlan['subscription_id']);
+if (!in_array($selectedPlan['profile_type'], ['free','paid'], true) || ($planMeta['disallow_signups'] ?? '0') === '1') {
+    redirect('/public/membership.php');
+}
+$selectedPlanName = trim((string)$selectedPlan['subscription_name']);
+$isFreeSignup = $selectedPlan['profile_type'] === 'free';
+$signupShortcode = trim((string)($planMeta['signup_form'] ?? ''));
+if ($signupShortcode === '') {
+    $signupShortcode = $isFreeSignup ? 'signup_free' : 'signup_paid';
+}
 $signupForm = getPublicFormByShortcode($pdo, $signupShortcode);
+if (!$signupForm && !empty($planMeta['signup_form'])) {
+    http_response_code(503);
+    exit('The configured signup form is unavailable. Please contact the administrator.');
+}
 $signupFields = $signupForm['fields'] ?? [];
 $hasTermsWidget = false;
 $hasConsentWidget = false;
@@ -163,6 +167,7 @@ function renderSignupField(array $field): string
     $placeholder = (string)($field['field_placeholder'] ?? '');
     $value = (string)($field['default_value'] ?? '');
     $isAccountField = in_array($name, ['email', 'email_confirm', 'password', 'password_confirm'], true);
+    if (in_array($name, ['email', 'email_confirm'], true) && isset($_POST[$name])) $value = (string)$_POST[$name];
     $id = $isAccountField ? $name : 'signup-field-' . (int)($field['field_id'] ?? 0);
     $inputName = $isAccountField ? e($name) : 'custom_fields[' . e($name) . ']';
     $requiredAttribute = $required ? ' required' : '';
@@ -260,7 +265,6 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
 {
     $html = '';
     $renderedAccountFields = [];
-    $submitLabel = 'Create Account';
 
     foreach ($fields as $field) {
         $name = trim((string)($field['field_name'] ?? ''));
@@ -268,7 +272,7 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
         $type = formFieldInternalType((string)($field['field_type'] ?? ''));
         $content = trim((string)($field['field_text'] ?? ''));
 
-        if (($field['field_input_view'] ?? '1') === '0' && $type !== 'html') {
+        if ((string)($field['field_input_view'] ?? '1') === '0' && $type !== 'html') {
             continue;
         }
 
@@ -299,7 +303,9 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
         }
 
         if ($type === 'submit') {
-            $submitLabel = $content !== '' ? signupFieldLabel($field) : 'Create Account';
+            $buttonMeta = json_decode((string)($field['json_meta'] ?? ''), true);
+            if (!empty($buttonMeta['adminOnly'])) continue;
+            $html .= '<button class="account-submit" type="submit">' . e(signupFieldLabel($field)) . '</button>';
             continue;
         }
         if ($type === 'honeypot') {
@@ -329,7 +335,6 @@ function renderFreeSignupForm(array $fields, string $baseUrl): string
         }
     }
 
-    $html .= '<button class="account-submit" type="submit">' . e($submitLabel) . '</button>';
     return '<div class="account-fields-grid">' . $html . '</div>';
 }
 
@@ -526,21 +531,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ref_code' => 'ref_code',
         'user_consent' => 'user_consent',
     ];
-    $userDataValues = [];
-    $metaValues = [];
-
-    foreach ($customValues as $fieldName => $fieldValue) {
-        if (isset($userDataColumnMap[$fieldName])) {
-            $userDataValues[$userDataColumnMap[$fieldName]] = $fieldValue;
-        } else {
-            $metaValues[$fieldName] = $fieldValue;
-        }
-    }
-
     if (!$errors) {
         try {
             $verifiedPayment = $isFreeSignup ? null : razorpayVerifySignup($selectedPlan, $email);
             $pdo->beginTransaction();
+            $destination = configuredFormDestination($pdo, (string)($signupForm['form_name'] ?? $signupShortcode), 'users_data', 'user_id');
+            $submittedValues = array_replace($customValues, ['email' => $email, 'user_consent' => $consentValue]);
+            $userDataValues = [];
+            $metaValues = [];
+            if ($destination[0] === 'users_data') {
+                [$userDataValues, $metaValues] = splitDestinationFields($destination[2], $destination[1], $customValues);
+                foreach ($userDataColumnMap as $source => $target) {
+                    if (isset($metaValues[$source]) && in_array($target, $destination[2], true) && !array_key_exists($target, $userDataValues)) {
+                        $userDataValues[$target] = $metaValues[$source];
+                        unset($metaValues[$source]);
+                    }
+                }
+                unset($userDataValues['email']);
+            }
+
 
             $passwordHash = password_hash($password, PASSWORD_DEFAULT);
             $token = bin2hex(random_bytes(24));
@@ -561,7 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ) VALUES (
                     '', '', ?, '', '', '', '', '', '', '', '',
                     'IN', 'India', NULL, NULL, NULL, NULL, NULL, '', NULL, NULL,
-                    NULL, NULL, NULL, 0, ?, '', ?, 2, ?,
+                    NULL, NULL, NULL, 0, ?, '', ?, ?, ?,
                     ?, ?, ?, '', '', '', '', '0', 0, '', '', 0, '', 0, '', '', '',
                     '', 0, ?, '', ''
                 )"
@@ -570,6 +579,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $email,
                 (int)$selectedPlan['subscription_id'],
                 $passwordHash,
+                ['active'=>2, 'pending'=>1, 'inactive'=>0][$planMeta['auto_activate'] ?? 'active'] ?? 2,
                 $token,
                 $referralCode !== '' ? $referralCode : 'Website Signup',
                 $signupDate,
@@ -597,7 +607,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateUser->execute($updateValues);
             }
 
-            $destination = configuredFormDestination($pdo, (string)($signupForm['form_name'] ?? $signupShortcode), 'users_data', 'user_id');
             if ($metaValues && !tableExists($pdo, 'users_meta')) {
                 throw new RuntimeException('The users_meta table is unavailable.');
             }
@@ -620,9 +629,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($destination[0] !== 'users_data') {
                 if ($destination[1] === 'user_id') {
-                    saveConfiguredMemberRecord($pdo, $destination, $newUserId, array_replace($customValues, $userDataValues, ['email' => $email, 'user_consent' => $consentValue]), $metaValues);
+                    saveConfiguredMemberRecord($pdo, $destination, $newUserId, $submittedValues, [], $password);
                 } else {
-                    saveIndependentMemberDestination($pdo, $destination, $newUserId, array_replace($customValues, ['email' => $email, 'user_consent' => $consentValue]));
+                    saveIndependentMemberDestination($pdo, $destination, $newUserId, $submittedValues, $password);
                 }
             }
             if ($verifiedPayment) {
@@ -638,7 +647,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             error_log('Signup destination [dynamic-v4]: ' . $exception->getMessage());
-            $errors[] = 'Your account could not be created. Please try again.';
+            $errors[] = str_starts_with($exception->getMessage(), 'Payment does not match') ? 'Payment could not be matched to this signup. Use the original email and plan. If already charged, contact support before paying again.' : 'Your account could not be created. Please try again.';
         }
     }
 }

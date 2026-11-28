@@ -325,7 +325,7 @@ require __DIR__ . '/../../../includes/header.php';
             </div>
 
             <div data-panel="developer" hidden>
-                <div class="row"><div class="col-md-6"><label>Form System Name</label><input class="form-control" readonly value="<?=e($form['form_name'])?>"><small class="settings-note">Existing system name is protected to preserve shortcode and field mappings.</small></div></div>
+                <div class="row"><div class="col-md-6"><label>Form System Name</label><input class="form-control" name="form_name" required maxlength="248" pattern="[A-Za-z0-9_\-]+" value="<?=e($form['form_name'])?>"><small class="settings-note">Use letters, numbers, underscores or hyphens. Integrated system forms cannot be renamed.</small></div></div>
                 <h4>Input Field Settings</h4>
 
                 <div class="row">

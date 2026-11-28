@@ -7,9 +7,13 @@ try {
     $email = strtolower(trim((string)($_POST['email'] ?? '')));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Invalid email.');
     if (!tableExists($pdo, 'membership_test_payments')) throw new RuntimeException('Payment setup is incomplete.');
-    $stmt = $pdo->prepare("SELECT subscription_id, monthly_amount, yearly_amount FROM subscription_types WHERE subscription_id = ? AND subscription_id <> 1 AND subscription_type = 'member' AND sub_active = 1");
+    $stmt = $pdo->prepare("SELECT subscription_id, monthly_amount, yearly_amount FROM subscription_types WHERE subscription_id = ? AND profile_type = 'paid' AND subscription_type = 'member' AND sub_active = 1");
     $stmt->execute([(int)($_POST['plan_id'] ?? 0)]);
     $plan = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($plan) {
+        require_once __DIR__ . '/../includes/membership_plans.php';
+        if ((mpMeta($pdo, (int)$plan['subscription_id'])['disallow_signups'] ?? '0') === '1') throw new RuntimeException('Public signup is disabled.');
+    }
     if (!$plan) throw new RuntimeException('Invalid paid plan.');
     $check = $pdo->prepare('SELECT user_id FROM users_data WHERE email = ?');
     $check->execute([$email]);

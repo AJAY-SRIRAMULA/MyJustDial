@@ -3,7 +3,7 @@ document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',(
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
 document.querySelectorAll('.mp-editor').forEach(form=>{
  const tabs=[...form.querySelectorAll('[data-tab]')], panels=[...form.querySelectorAll('[data-panel]')];
- function activate(i){tabs.forEach((b,j)=>b.classList.toggle('selected',i===j));panels.forEach((p,j)=>p.hidden=i!==j);}
+ function activate(i){form.querySelector('[name=active_tab]').value=String(i);tabs.forEach((b,j)=>b.classList.toggle('selected',i===j));panels.forEach((p,j)=>p.hidden=i!==j);}
  tabs.forEach((b,i)=>b.addEventListener('click',()=>{form.querySelector('.mp-setting-search').value='';form.querySelectorAll('.mp-field').forEach(f=>f.hidden=false);activate(i);}));
  form.querySelector('.mp-setting-search').addEventListener('input',e=>{const q=e.target.value.toLowerCase();if(!q){form.querySelectorAll('.mp-field').forEach(f=>f.hidden=false);activate(Math.max(0,tabs.findIndex(t=>t.classList.contains('selected'))));return;}panels.forEach(p=>{let found=false;p.querySelectorAll('.mp-field').forEach(f=>{f.hidden=!f.textContent.toLowerCase().includes(q);if(!f.hidden)found=true;});p.hidden=!found;});});
  form.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('change',()=>form.querySelectorAll(`input[name="${b.dataset.toggle}[]"]`).forEach(c=>c.checked=b.checked)));
@@ -29,16 +29,15 @@ function initializeMembershipEditors(root=document){
  root.querySelectorAll('.mp-richtext').forEach(field=>{
   if(field.dataset.initialized || !field.getClientRects().length)return;
   const status=field.nextElementSibling, lib=window.CKEDITOR;
-  if(!lib || !window.mpEditorLicense){status.textContent='Rich text editor requires a valid CKEditor license configuration and CDN access. HTML can still be edited below.';return;}
+  if(!lib || !lib.ClassicEditor || !window.mpEditorLicense){status.textContent='Rich text editor requires a valid CKEditor license configuration and CDN access. HTML can still be edited below.';return;}
   field.dataset.initialized='1';
-  const names=['Essentials','Paragraph','Heading','Bold','Italic','Underline','Strikethrough','FontFamily','FontSize','FontColor','FontBackgroundColor','Alignment','List','Link','Image','ImageInsertViaUrl','MediaEmbed','Table','TableToolbar','SourceEditing','BlockQuote','HorizontalLine','RemoveFormat','WordCount'];
+  const names=['Essentials','Paragraph','Heading','Bold','Italic','Underline','Strikethrough','FontFamily','FontSize','FontColor','FontBackgroundColor','Alignment','List','Link','ImageBlock','ImageToolbar','ImageCaption','ImageStyle','ImageResize','ImageInsertViaUrl','MediaEmbed','Table','TableToolbar','SourceEditing','BlockQuote','HorizontalLine','RemoveFormat','WordCount'];
   lib.ClassicEditor.create(field,{licenseKey:window.mpEditorLicense,plugins:names.map(n=>lib[n]).filter(Boolean),placeholder:'Type something',toolbar:{items:['undo','redo','|','fontFamily','bold','italic','underline','fontSize','fontColor','fontBackgroundColor','|','heading','alignment','bulletedList','numberedList','|','link','insertImageViaUrl','mediaEmbed','insertTable','sourceEditing','blockQuote','removeFormat'],shouldNotGroupWhenFull:true},table:{contentToolbar:['tableColumn','tableRow','mergeTableCells']}}).then(editor=>{
    const sync=()=>{field.value=editor.getData();status.textContent='Characters: '+editor.getData().replace(/<[^>]*>/g,'').length;};
    editor.model.document.on('change:data',sync);field.form.addEventListener('submit',sync);sync();
-  }).catch(error=>{delete field.dataset.initialized;field.hidden=false;status.textContent='CKEditor could not initialize. HTML editing remains available.';console.error(error);});
+  }).catch(error=>{delete field.dataset.initialized;field.hidden=false;field.style.display='';status.textContent='CKEditor could not initialize. HTML editing remains available.';console.error(error);});
  });
 }
-initializeMembershipEditors();
 document.querySelectorAll('[data-open],[data-tab]').forEach(button=>button.addEventListener('click',()=>requestAnimationFrame(()=>initializeMembershipEditors())));document.querySelectorAll('.mp-setting-search').forEach(input=>input.addEventListener('input',()=>requestAnimationFrame(()=>initializeMembershipEditors())));
 document.querySelectorAll('.mp-editor').forEach(form=>{
  const type=form.elements.namedItem('settings[profile_type]');
@@ -64,3 +63,5 @@ document.querySelectorAll('.mp-editor').forEach(form=>{
  function refresh(){postAll.checked=posts.length>0&&posts.every(c=>c.checked);postAll.indeterminate=posts.some(c=>c.checked)&&!postAll.checked;viewAll.checked=views.length>0&&views.every(c=>c.value==='allow');viewAll.indeterminate=views.some(c=>c.value==='allow')&&!viewAll.checked;views.forEach(c=>{const status=c.closest('.mp-publish-row').querySelector('.mp-view-status');status.textContent=c.value==='deny'?'Cannot View':c.value==='allow'?'Can View':'Public for All to View';status.classList.toggle('is-denied',c.value==='deny');});}
  postAll.addEventListener('change',()=>{posts.forEach(c=>c.checked=postAll.checked);refresh();});viewAll.addEventListener('change',()=>{views.forEach(c=>c.value=viewAll.checked?'allow':'deny');refresh();});panel.addEventListener('change',refresh);refresh();
 });
+
+initializeMembershipEditors();

@@ -255,7 +255,45 @@ require __DIR__ . '/../includes/header.php';
                             <?php if ($member['company'] || $member['phone_number']): ?><div><?php if ($member['company']): ?><i class="fa fa-building-o"></i> <?= e($member['company']) ?><?php endif; ?><?php if ($member['phone_number']): ?> <span class="member-phone"><i class="fa fa-phone"></i> <a class="member-contact-link" href="tel:<?= e($member['phone_number']) ?>"><?= e($member['phone_number']) ?></a></span><?php endif; ?></div><?php endif; ?>
                             <?php $memberSocials = [['website', 'fa-home', 'Website'], ['facebook', 'fa-facebook', 'Facebook'], ['twitter', 'fa-twitter', 'X'], ['linkedin', 'fa-linkedin', 'LinkedIn'], ['youtube', 'fa-youtube', 'YouTube'], ['instagram', 'fa-instagram', 'Instagram'], ['pinterest', 'fa-pinterest', 'Pinterest']]; ?>
                             <?php $hasSocials = false; foreach ($memberSocials as $social) { if (!empty($member[$social[0]])) { $hasSocials = true; break; } } ?>
-                            <?php if ($hasSocials): ?><div class="member-social-links"><?php foreach ($memberSocials as $social): if (!empty($member[$social[0]])): ?><a href="<?= e(preg_match('~^https?://~i', (string)$member[$social[0]]) ? (string)$member[$social[0]] : 'https://' . (string)$member[$social[0]]) ?>" target="_blank" rel="noopener" title="<?= e($social[2]) ?>" aria-label="<?= e($social[2]) ?>"><i class="fa <?= e($social[1]) ?>"></i></a><?php endif; endforeach; ?></div><?php endif; ?>
+                           <?php if ($hasSocials): ?>
+    <div class="member-social-links">
+
+        <?php foreach ($memberSocials as $social): ?>
+
+            <?php if (!empty($member[$social[0]])): ?>
+
+                <?php
+                $socialUrl = trim((string)$member[$social[0]]);
+
+                if (preg_match('~^https?%3A~i', $socialUrl)) {
+                    $socialUrl = rawurldecode($socialUrl);
+                }
+
+                if (!preg_match('~^https?://~i', $socialUrl)) {
+                    $socialUrl = 'https://' . $socialUrl;
+                }
+                ?>
+
+                <?php if (filter_var($socialUrl, FILTER_VALIDATE_URL)): ?>
+
+                    <a href="<?= e($socialUrl) ?>"
+                       target="_blank"
+                       rel="noopener"
+                       title="<?= e($social[2]) ?>"
+                       aria-label="<?= e($social[2]) ?>">
+
+                        <i class="fa <?= e($social[1]) ?>"></i>
+
+                    </a>
+
+                <?php endif; ?>
+
+            <?php endif; ?>
+
+        <?php endforeach; ?>
+
+    </div>
+<?php endif; ?>
                             <div><i class="fa fa-map-marker"></i> <?= e(implode(', ', array_filter([$member['city'], $member['state_ln'], $member['country_ln']]))) ?></div>
                         </div>
                         <details class="member-actions">

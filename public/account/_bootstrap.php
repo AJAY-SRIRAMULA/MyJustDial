@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/form_fields.php';
 require_once __DIR__ . '/../../includes/recaptcha.php';
 require_once __DIR__ . '/../../includes/custom_components.php';
 
+require_once __DIR__ . '/../../includes/membership_runtime.php';
 $isAdminPreview = !empty($_SESSION['admin_id']) && isset($_GET['admin_member']);
 if (empty($_SESSION['member_id']) && !$isAdminPreview) {
     redirect('/public/login.php');
@@ -152,7 +153,7 @@ function memberAccountFooter(array $config): void
 function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, string $section, string $csrf): void
 {
     $canonicalFormName = $formName;
-    $formName = resolveMemberFormName($pdo, $formName);
+    $formName = membershipAccountForm($pdo, $member, $section, $formName);
     $formIdQuery = $pdo->prepare('SELECT form_id FROM forms WHERE form_name = ? LIMIT 1');
     $formIdQuery->execute([$formName]);
     $memberFormId = (int)$formIdQuery->fetchColumn();
@@ -200,12 +201,6 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
             }
         }
     }
-    $submitLabel = 'Save & Continue';
-    foreach ($configuredFields as $configuredField) {
-        if (formFieldInternalType((string)$configuredField['field_type']) === 'submit' && trim((string)$configuredField['field_text']) !== '') {
-            $submitLabel = trim((string)$configuredField['field_text']);
-        }
-    }
     ?>
     <form class="member-dynamic-form" method="post" action="<?= e($GLOBALS['config']['base_url']) ?>/public/account/save.php" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
@@ -236,7 +231,12 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                 continue;
             }
             if ($type === 'captcha') { echo renderConfiguredCaptcha($pdo); continue; }
-            if ($type === 'submit') continue;
+            if ($type === 'submit') {
+                $buttonMeta = json_decode((string)($field['json_meta'] ?? ''), true);
+                if (!empty($buttonMeta['adminOnly']) && empty($GLOBALS['isAdminPreview'])) continue;
+                echo '<button type="submit" class="member-save-button">' . e($label) . '</button>';
+                continue;
+            }
             if ($type === 'html') {
                 require_once __DIR__ . '/../../includes/widgets.php';
                 $widgetContent = (string)$field['field_text'] . ' ' . (string)($field['field_ldesc'] ?? '');
@@ -333,7 +333,7 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                     <?php elseif (in_array($type, ['select','radio','checkbox_group','country','state','top_category','years'], true)): ?>
                         <?php if ($type === 'radio' || $type === 'checkbox_group'): ?>
                             <?php if ($name === 'specialty_categories'): ?>
-                            <div class="member-specialty-picker">
+                            <div class="member-specialty-picker" data-limit="<?= e((string)(membershipCategoryLimit(membershipPlanFor($pdo, (int)$member['subscription_id'])) ?? '')) ?>">
                                 <div class="member-specialty-heading"><strong><?= e($label ?: 'Select Categories You Specialize In') ?></strong><input type="search" data-specialty-search placeholder="Search By Keyword" aria-label="Search specialty categories"></div>
                                 <div class="member-checkbox-options member-specialty-options">
                             <?php else: ?>
@@ -369,7 +369,6 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
                 </div>
             </div>
         <?php endforeach; ?>
-        <button type="submit" class="member-save-button"><?= e($submitLabel) ?></button>
         <script src="https://cdn.ckeditor.com/ckeditor5/48.5.1/ckeditor5.umd.js"></script>
         <script>
         (function () {
@@ -509,7 +508,9 @@ function renderMemberConfiguredForm(PDO $pdo, array $member, string $formName, s
             var count = picker.querySelector('[data-specialty-count]');
             function updateCount() {
                 var selected = picker.querySelectorAll('.member-specialty-options input:checked').length;
-                if (count) count.textContent = 'You Are Listed In ' + selected + ' Categories';
+                var limit = picker.dataset.limit === '' ? null : Number(picker.dataset.limit);
+                picker.querySelectorAll('input[type=checkbox]').forEach(function (box) { box.disabled = !box.checked && limit !== null && selected >= limit; });
+                if (count) count.textContent = 'You Are Listed In ' + selected + ' Categories' + (limit === null ? '' : ' (maximum ' + limit + ')');
             }
             if (search) search.addEventListener('input', function () {
                 var term = search.value.trim().toLowerCase();

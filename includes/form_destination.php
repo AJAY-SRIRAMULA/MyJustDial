@@ -18,11 +18,11 @@ function configuredFormDestination(PDO $pdo, string $name, string $default, stri
     return [$table, $key, $names, $name];
 }
 
-function saveConfiguredMemberRecord(PDO $pdo, array $destination, int $memberId, array $values, array $metadata): void
+function saveConfiguredMemberRecord(PDO $pdo, array $destination, int $memberId, array $values, array $metadata, ?string $signupPassword = null): void
 {
     [$table, $key, $columns] = $destination;
     if ($key !== 'user_id') {
-        saveIndependentMemberDestination($pdo, $destination, $memberId, array_replace($metadata, $values));
+        saveIndependentMemberDestination($pdo, $destination, $memberId, array_replace($metadata, $values), $signupPassword);
         return;
     }
     validateIndependentDestination($pdo, $destination);
@@ -36,11 +36,12 @@ function saveConfiguredMemberRecord(PDO $pdo, array $destination, int $memberId,
     $names = array_keys($values);
     $quoted = array_map(static fn($n) => '`' . str_replace('`', '``', $n) . '`', $names);
     if ($ids) {
+        if ($signupPassword !== null) throw new RuntimeException('Signup destination already contains this member identifier.');
         $sets = array_map(static fn($n) => $n . ' = ?', $quoted);
         $pdo->prepare("UPDATE `$table` SET " . implode(',', $sets) . " WHERE `$key` = ? AND user_id = ?")->execute(array_merge(array_values($values), [$ids[0], $memberId]));
         $id = $ids[0];
     } else {
-        insertDynamicDestination($pdo, $destination, $values, $memberId);
+        insertDynamicDestination($pdo, $destination, $values, $memberId, false, $signupPassword);
         $id = $memberId;
     }
     if (!$id) throw new RuntimeException('Destination record has no identifier.');
@@ -58,7 +59,7 @@ function splitDestinationFields(array $columns, string $key, array $submitted): 
 {
     $direct = [];
     $metadata = [];
-    $protected = ['password', 'password_hash', 'token', 'cookie', 'active', 'verified', 'admin_id', 'role_id', 'subscription_id', 'user_id', 'parent_id', 'featured'];
+    $protected = ['password', 'password_hash', 'password_confirm', 'email_confirm', 'g-recaptcha-response', 'csrf_token', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'token', 'cookie', 'active', 'verified', 'admin_id', 'role_id', 'subscription_id', 'user_id', 'parent_id', 'featured', 'signup_date', 'last_login', 'modtime', 'google_id', 'facebook_id', 'api_key', 'secret', 'role', 'permissions'];
     foreach ($submitted as $name => $value) {
         if (str_starts_with(strtolower($name), '__mjd_owner_') || $name === $key || in_array(strtolower($name), $protected, true)) {
             continue;
@@ -102,10 +103,10 @@ function independentMemberDestinationId(PDO $pdo, array $destination, int $membe
     return $ids ? (int)$ids[0] : null;
 }
 
-function saveIndependentMemberDestination(PDO $pdo, array $destination, int $memberId, array $submitted): void
+function saveIndependentMemberDestination(PDO $pdo, array $destination, int $memberId, array $submitted, ?string $signupPassword = null): void
 {
     [$table, $key, $columns] = $destination;
-    validateIndependentDestination($pdo, $destination, $review);
+    validateIndependentDestination($pdo, $destination);
     if (!$pdo->inTransaction()) throw new RuntimeException('Destination requires a transaction.');
     $lock = $pdo->prepare('SELECT user_id FROM users_data WHERE user_id=? FOR UPDATE');
     $lock->execute([$memberId]);
@@ -114,7 +115,7 @@ function saveIndependentMemberDestination(PDO $pdo, array $destination, int $mem
     [$direct, $metadata] = splitDestinationFields($columns, $key, $submitted);
     $names = array_map(static fn($n) => '`' . str_replace('`', '``', $n) . '`', array_keys($direct));
     if ($id === null) {
-        $id = insertDynamicDestination($pdo, $destination, $direct);
+        $id = insertDynamicDestination($pdo, $destination, $direct, null, false, $signupPassword);
         $metadata[independentDestinationOwnerKey($destination)] = (string)$memberId;
     } elseif ($direct) {
         $sets = array_map(static fn($n) => $n . '=?', $names);
@@ -136,7 +137,11 @@ function destinationMissingValue(array $column)
     $name = strtolower($column['COLUMN_NAME']);
     $type = strtolower($column['DATA_TYPE']);
     // Neutral placeholders only; never invent credentials or grant privileges.
-    if (preg_match('/password|secret|api_key|permission|role|privilege|credential|salt/i', $name)) {
+    if (in_array($name, ['password', 'password_hash'], true) && in_array($type, ['char','varchar','text','mediumtext','longtext'], true)) {
+        // A non-signup record must not create a usable login credential.
+        return password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+    }
+    if ($name !== 'credentials' && preg_match('/password|secret|api_key|permission|role|privilege|credential|salt/i', $name)) {
         throw new RuntimeException('Required sensitive destination column: ' . $name);
     }
     if (in_array($type, ['char','varchar','tinytext','text','mediumtext','longtext','binary','varbinary','tinyblob','blob','mediumblob','longblob'], true)) {
@@ -149,12 +154,20 @@ function destinationMissingValue(array $column)
     throw new RuntimeException('No safe fallback for required destination column: ' . $name . ' (' . $type . ')');
 }
 
-function insertDynamicDestination(PDO $pdo, array $destination, array $direct, ?int $explicitId = null, bool $review = false): int
+function insertDynamicDestination(PDO $pdo, array $destination, array $direct, ?int $explicitId = null, bool $review = false, ?string $signupPassword = null): int
 {
     validateIndependentDestination($pdo, $destination, $review);
     if (!$pdo->inTransaction()) throw new RuntimeException('Destination requires a transaction.');
     [$table, $key, $columns] = $destination;
     if ($explicitId !== null) $direct[$key] = $explicitId;
+    if ($signupPassword !== null) {
+        foreach (['password', 'password_hash'] as $passwordColumn) {
+            if (in_array($passwordColumn, $columns, true)) {
+                // Hash independently; never store plaintext or copy the account hash.
+                $direct[$passwordColumn] = password_hash($signupPassword, PASSWORD_DEFAULT);
+            }
+        }
+    }
     $query = $pdo->prepare('SELECT COLUMN_NAME, EXTRA, IS_NULLABLE, COLUMN_DEFAULT, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
     $query->execute([$table]);
     foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $column) {

@@ -166,6 +166,12 @@ function getPublicFormByShortcode(PDO $pdo, string $shortcode): ?array
         $form = $fallbackStatement->fetch(PDO::FETCH_ASSOC);
     }
 
+    if (!$form && tableExists($pdo, 'users_meta')) {
+        $previous = $pdo->prepare("SELECT f.* FROM forms f INNER JOIN users_meta m ON m.database_id = f.form_id WHERE m.`database` = 'forms' AND m.`key` = 'form_previous_system_name' AND m.value = ? ORDER BY m.meta_id DESC LIMIT 1");
+        $previous->execute([$shortcode]);
+        $form = $previous->fetch(PDO::FETCH_ASSOC);
+    }
+
     if (!$form) {
         return null;
     }
@@ -285,7 +291,7 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
     $html .= '<div class="public-form-honeypot" aria-hidden="true"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off" data-fake-filler-ignore="true" hidden></label></div>';
 
     foreach ($form['fields'] as $field) {
-        if (($field['field_input_view'] ?? '1') === '0') {
+        if ((string)($field['field_input_view'] ?? '1') === '0') {
             continue;
         }
 
@@ -302,7 +308,13 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         $options = publicFormFieldOptions($field);
 
         if ($type === 'captcha') { $html .= renderConfiguredCaptcha($pdo); continue; }
-        if (in_array($type, ['submit', 'honeypot'], true)) {
+        if ($type === 'submit') {
+            $buttonMeta = json_decode((string)($field['json_meta'] ?? ''), true);
+            if (!empty($buttonMeta['adminOnly'])) continue;
+            $html .= '<button class="public-form-submit" type="submit">' . e($label) . '</button>';
+            continue;
+        }
+        if ($type === 'honeypot') {
             continue;
         }
 
@@ -422,16 +434,10 @@ function renderPublicForm(PDO $pdo, string $shortcode, string $csrfToken): strin
         require_once __DIR__ . '/directory_search.php';
         $html .= '<label class="directory-category-field">Category' . directoryCategorySelect($pdo, $_GET, 'fields') . '</label>';
     }
-    $buttonLabel = match ($shortcode) { 'newsletter_modal_signup' => 'Subscribe Now', 'find_members' => 'Search Now', 'listing_write_review' => 'Submit Review', default => 'Send Message' };
-    if ($shortcode === 'newsletter_modal_signup') {
-        foreach ($form['fields'] as $field) {
-            if (publicFormFieldType($field) === 'submit' && (string)($field['field_input_view'] ?? '1') !== '0' && trim((string)$field['field_text']) !== '') {
-                $buttonLabel = trim((string)$field['field_text']);
-                break;
-            }
-        }
+    // The synthetic Find Members widget is not a configured database form.
+    if ($shortcode === 'find_members' && (int)$form['form_id'] === 0) {
+        $html .= '<button class="public-form-submit" type="submit">Search Now</button>';
     }
-    $html .= '<button class="public-form-submit" type="submit">' . e($buttonLabel) . '</button>';
     $html .= '</form>';
 
     return $html;
@@ -765,7 +771,7 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode, ?int $profileM
         }
         [$matched, $unmatched] = splitDestinationFields($writableColumns, $destinationKey, $values);
         $aliases = ['inquiry_email' => 'email', 'phone' => 'phone_number', 'enter_a_message' => 'comments'];
-        foreach ($aliases as $source => $target) {
+        foreach ($destinationTable === 'form_inquiries' ? $aliases : [] as $source => $target) {
             if (array_key_exists($source, $unmatched) && in_array($target, $writableColumns, true) && !array_key_exists($target, $matched)) {
                 $matched[$target] = $unmatched[$source];
                 unset($unmatched[$source]);
@@ -777,7 +783,6 @@ function processPublicFormSubmission(PDO $pdo, string $shortcode, ?int $profileM
             'inquiry_status' => 'New',
             'inquiry_archived' => 0,
             'inquiry_notes' => '',
-            'user_consent' => '',
             'inquiry_form' => (string)$form['form_name'],
             'inquiry_content' => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
             'date_submitted' => date('YmdHis'),
@@ -877,10 +882,8 @@ function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, s
     $html .= '<input type="hidden" name="csrf_token" value="' . e($csrfToken) . '">';
     $html .= '<div class="public-form-honeypot" aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;"><label>Leave this field empty<input type="text" name="website_address" tabindex="-1" autocomplete="off" data-fake-filler-ignore="true" hidden></label></div>';
 
-    $submitLabel = 'Login Now';
-
     foreach ($form['fields'] as $field) {
-        if (($field['field_input_view'] ?? '1') === '0') {
+        if ((string)($field['field_input_view'] ?? '1') === '0') {
             continue;
         }
 
@@ -899,13 +902,9 @@ function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, s
         $isPasswordField = $type === 'password' || preg_match('/\\b(password|passcode)\\b/i', $semantic);
 
         if ($type === 'submit') {
-            if ($label !== '') {
-                $submitLabel = (
-                    $shortcodeKey === 'member_login'
-                    && strtolower($label) === 'submit message'
-                ) ? 'Log In Now' : $label;
-            }
-
+            $buttonMeta = json_decode((string)($field['json_meta'] ?? ''), true);
+            if (!empty($buttonMeta['adminOnly'])) continue;
+            $html .= '<button class="login-submit" type="submit">' . e($label) . '</button>';
             continue;
         }
 
@@ -1028,7 +1027,6 @@ function renderPublicLoginForm(PDO $pdo, string $shortcode, string $csrfToken, s
         $html .= '</div>';
     }
 
-    $html .= '<button class="login-submit" type="submit">' . e($submitLabel) . '</button>';
     $html .= '</form>';
 
     return $html;

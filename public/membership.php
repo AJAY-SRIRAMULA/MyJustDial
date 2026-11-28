@@ -8,134 +8,18 @@ $phoneNumber = $settings['contact_phone'] !== ''
     ? $settings['contact_phone']
     : '1-800-555-5555';
 
+require_once __DIR__ . '/../includes/membership_plans.php';
 $plans = [];
-
 if (tableExists($pdo, 'subscription_types')) {
-    $planQuery = $pdo->prepare(
-        "SELECT
-            subscription_id,
-            subscription_name,
-            monthly_amount,
-            yearly_amount,
-            profile_type,
-            profile_photo,
-            photo_limit,
-            service_limit,
-            website_link,
-            social_link,
-            seal_link,
-            show_about,
-            show_experience,
-            show_education,
-            show_background,
-            show_affiliations,
-            show_publications,
-            show_awards,
-            show_slogan,
-            show_phone,
-            searchable
-         FROM subscription_types
-         WHERE sub_active = 1
-           AND subscription_type = 'member'
-         ORDER BY monthly_amount DESC, yearly_amount DESC, subscription_id DESC"
-    );
-    $planQuery->execute();
-    $plans = $planQuery->fetchAll(PDO::FETCH_ASSOC);
+    $plans = $pdo->query("SELECT * FROM subscription_types WHERE sub_active = 1 AND subscription_type = 'member' AND profile_type IN ('free','paid') ORDER BY monthly_amount, yearly_amount, subscription_id")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($plans as &$plan) {
+        $plan['meta'] = mpMeta($pdo, (int)$plan['subscription_id']);
+    }
+    unset($plan);
+    $plans = array_values(array_filter($plans, static fn($plan) => ($plan['meta']['disallow_signups'] ?? '0') !== '1'));
 }
-
-$planDisplayNames = [
-    1 => 'Free',
-    2 => 'Standard',
-    3 => 'Premium',
-];
-
-$getPlanDisplayName = static function (array $plan) use ($planDisplayNames): string {
-    $planId = (int)$plan['subscription_id'];
-
-    if (isset($planDisplayNames[$planId])) {
-        return $planDisplayNames[$planId];
-    }
-
-    $name = trim((string)$plan['subscription_name']);
-
-    return preg_replace('/^Membership Plan\\s+\\d+$/i', 'Membership', $name);
-};
-
-$formatPrice = static function ($amount): string {
-    return number_format((float)$amount, 0, '.', ',');
-};
-
-$getPlanFeatures = static function (array $plan): array {
-    $features = [];
-
-    if ((int)$plan['profile_photo'] === 1) {
-        $features[] = 'Profile Photo';
-    }
-
-    if ((int)$plan['website_link'] === 1) {
-        $features[] = 'Website Link';
-    }
-
-    if ((int)$plan['social_link'] === 1) {
-        $features[] = 'Social Media Links';
-    }
-
-    if ((int)$plan['seal_link'] === 1) {
-        $features[] = 'Profile Seal';
-    }
-
-    if ((int)$plan['show_about'] === 1) {
-        $features[] = 'About Information';
-    }
-
-    if ((int)$plan['show_experience'] === 1) {
-        $features[] = 'Experience Details';
-    }
-
-    if ((int)$plan['show_education'] === 1) {
-        $features[] = 'Education Details';
-    }
-
-    if ((int)$plan['show_background'] === 1) {
-        $features[] = 'Background Information';
-    }
-
-    if ((int)$plan['show_affiliations'] === 1) {
-        $features[] = 'Affiliations';
-    }
-
-    if ((int)$plan['show_publications'] === 1) {
-        $features[] = 'Publications';
-    }
-
-    if ((int)$plan['show_awards'] === 1) {
-        $features[] = 'Awards';
-    }
-
-    if ((int)$plan['show_slogan'] === 1) {
-        $features[] = 'Profile Slogan';
-    }
-
-    if ((int)$plan['show_phone'] === 1) {
-        $features[] = 'Phone Display';
-    }
-
-    if ((int)$plan['searchable'] === 1) {
-        $features[] = 'Directory Search Visibility';
-    }
-
-    $serviceLimit = trim((string)$plan['service_limit']);
-
-    if ($serviceLimit !== '' && ctype_digit($serviceLimit) && (int)$serviceLimit > 0) {
-        $features[] = 'Up to ' . (int)$serviceLimit . ' Service Listings';
-    }
-
-    if ((int)$plan['photo_limit'] > 0) {
-        $features[] = 'Up to ' . number_format((int)$plan['photo_limit']) . ' Photos';
-    }
-
-    return $features;
-};
+$benefits = ['Directory search visibility'=>'searchable','Profile photo'=>'profile_photo','Maximum sub-level categories'=>'service_limit','Search priority (0 is highest)'=>'search_priority','Website link'=>'website_link','Social media links'=>'social_link'];
+$formatPrice = static fn($amount) => number_format((float)$amount, 2, '.', ',');
 
 ?>
 <!DOCTYPE html>
@@ -150,6 +34,7 @@ $getPlanFeatures = static function (array $plan): array {
     $websiteCssVersion = is_file($websiteCssPath) ? filemtime($websiteCssPath) : time();
     ?>
     <link rel="stylesheet" href="<?= e($baseUrl) ?>/public/assets/css/website.css?v=<?= (int)$websiteCssVersion ?>">
+    <link rel="stylesheet" href="<?= e($baseUrl) ?>/assets/css/join-comparison.css?v=<?= (int)filemtime(__DIR__ . '/../assets/css/join-comparison.css') ?>">
     <style>
         :root {
             --primary: <?= e($settings['primary_color']) ?>;
@@ -214,46 +99,38 @@ $getPlanFeatures = static function (array $plan): array {
         </div>
     </nav>
 
-    <main class="membership-main">
-        <div class="membership-banner" aria-hidden="true"></div>
-        <section class="site-container membership-plan-list" id="plans">
-
-
+    <main class="day10-join">
+        <section class="day10-hero">
+            <span>MEMBERSHIP PLANS</span>
+            <h1>Your Business. Your Next Level.</h1>
+            <p>Build your online presence and reach more customers.<br>Compare our membership options and choose the right plan for your business.</p>
+        </section>
+        <section class="site-container day10-comparison" id="plans">
             <?php if ($plans): ?>
-                <?php foreach ($plans as $plan): ?>
-                    <?php $features = $getPlanFeatures($plan); ?>
-                    <article class="membership-plan-row">
-                        <div class="membership-price-panel">
-                            <h1><?= e($getPlanDisplayName($plan)) ?></h1>
-                            <p>₹<?= e($formatPrice($plan['monthly_amount'])) ?>/month</p>
-                            <p>₹<?= e($formatPrice($plan['yearly_amount'])) ?>/year</p>
-                            <a class="membership-select-button" href="<?= e($baseUrl) ?>/public/signup.php?plan_id=<?= (int)$plan['subscription_id'] ?>">
-                                SELECT PLAN
-                            </a>
-                        </div>
-
-                        <div class="membership-plan-details">
-                            <p class="membership-plan-description">
-                                Membership benefits available with this plan are listed below.
-                            </p>
-
-                            <?php if ($features): ?>
-                                <ul class="membership-feature-list">
-                                    <?php foreach ($features as $feature): ?>
-                                        <li><?= e($feature) ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p class="membership-no-features">No additional profile features are configured for this plan.</p>
-                            <?php endif; ?>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="membership-empty-state">
-                    No active membership plans are currently available.
+                <div class="day10-scroll" tabindex="0" aria-label="Membership comparison">
+                    <table class="day10-table">
+                        <thead><tr><th scope="col" class="day10-label"><h2>Find your perfect plan</h2><p>Compare configured membership benefits</p></th>
+                        <?php foreach ($plans as $i => $plan): ?>
+                            <th scope="col"><div class="day10-plan day10-tone-<?= $i % 3 ?>">
+                                <span class="day10-symbol" aria-hidden="true"><?= ['◇','✦','♛'][$i % 3] ?></span>
+                                <h2><?= e($plan['subscription_name']) ?></h2>
+                                <?php if ($plan['profile_type'] === 'free'): ?><strong>Free</strong><?php else: ?>
+                                    <?php if (($plan['meta']['hide_monthly_amount'] ?? '0') !== '1'): ?><strong>₹<?= e($formatPrice($plan['monthly_amount'])) ?><small> / month</small></strong><?php endif; ?>
+                                    <?php if (($plan['meta']['hide_yearly_amount'] ?? '0') !== '1'): ?><p>₹<?= e($formatPrice($plan['yearly_amount'])) ?> / year</p><?php endif; ?>
+                                <?php endif; ?>
+                            </div></th>
+                        <?php endforeach; ?></tr></thead>
+                        <tbody><?php foreach ($benefits as $label => $key): ?><tr><th scope="row"><?= e($label) ?></th>
+                            <?php foreach ($plans as $plan): ?><td>
+                                <?php if (in_array($key, ['service_limit','search_priority'], true)): ?><?= e((string)$plan[$key]) ?>
+                                <?php elseif ((int)$plan[$key] === 1): ?><span class="day10-yes" aria-label="Included">✓</span>
+                                <?php else: ?><span class="day10-no" aria-label="Not included">—</span><?php endif; ?>
+                            </td><?php endforeach; ?></tr><?php endforeach; ?></tbody>
+                        <tfoot><tr><th scope="row">Ready to join?</th><?php foreach ($plans as $i => $plan): ?><td><a class="day10-button day10-tone-<?= $i % 3 ?>" href="<?= e($baseUrl) ?>/public/signup.php?plan_id=<?= (int)$plan['subscription_id'] ?>">Join Now<span class="day10-sr"> – <?= e($plan['subscription_name']) ?></span></a></td><?php endforeach; ?></tr></tfoot>
+                    </table>
                 </div>
-            <?php endif; ?>
+                <p class="day10-note">Already a member? <a href="<?= e($baseUrl) ?>/public/login.php">Sign in to your account</a>.</p>
+            <?php else: ?><p class="day10-note">No membership plans are currently available for registration.</p><?php endif; ?>
         </section>
     </main>
 

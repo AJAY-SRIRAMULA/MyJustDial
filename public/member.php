@@ -2,22 +2,25 @@
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/member_forms.php';
 require __DIR__ . '/../includes/public_website.php';
+require_once __DIR__ . '/../includes/membership_runtime.php';
 $memberId = (int)($_GET['id'] ?? 0);
 $statement = $pdo->prepare(
     'SELECT u.profession_id, u.first_name, u.last_name, u.company, u.phone_number, u.city,
             u.state_ln, u.country_ln, u.position, u.zip_code, u.website, u.about_me, u.quote,
             u.experience, u.credentials, u.awards, u.filename, u.working_days,
-            s.subscription_name
+            s.subscription_name, s.show_phone, s.website_link, s.searchable, s.nofollow_links
      FROM users_data u
      LEFT JOIN subscription_types s ON s.subscription_id = u.subscription_id
      WHERE u.user_id = ? AND u.active = 2 LIMIT 1'
 );
 $statement->execute([$memberId]);
 $member = $statement->fetch();
-if (!$member) {
+if (!$member || ($member['searchable'] !== null && (int)$member['searchable'] === 0)) {
     http_response_code(404);
     exit('This public member listing is unavailable.');
 }
+if ($member['show_phone'] !== null && (int)$member['show_phone'] === 0) $member['phone_number'] = '';
+if ($member['website_link'] !== null && (int)$member['website_link'] === 0) $member['website'] = '';
 $websiteUrl = rawurldecode((string)$member['website']);
 if (!preg_match('~^https?://~i', $websiteUrl)) $websiteUrl = '';
 $photo = $pdo->prepare("SELECT file, original FROM users_photo WHERE user_id = ? AND type = 'photo' ORDER BY photo_id DESC LIMIT 1");

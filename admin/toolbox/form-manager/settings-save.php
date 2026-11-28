@@ -94,6 +94,32 @@ $s = [
 try {
     $pdo->beginTransaction();
 
+    $lock = $pdo->prepare('SELECT form_name, short_code, form_action_type FROM forms WHERE form_id = ? FOR UPDATE');
+    $lock->execute([$id]);
+    $current = $lock->fetch(PDO::FETCH_ASSOC);
+    if (!$current) throw new DomainException('Form not found.');
+    $oldName = (string)$current['form_name'];
+    $newName = trim((string)($_POST['form_name'] ?? $oldName));
+    if ($newName !== $oldName) {
+        if (!preg_match('/^[A-Za-z0-9_-]{1,248}$/D', $newName)) {
+            throw new DomainException('Invalid form system name.');
+        }
+        $reserved = '/(?:signup|login|contact|member|profile|listing|about|newsletter|review|lead|bootstrap|whmcs|find_members)/i';
+        $identity = $pdo->prepare("SELECT 1 FROM users_meta WHERE `database` = 'forms' AND database_id = ? AND (`key` = 'member_form_seeded' OR `key` LIKE 'public_shortcode_%') LIMIT 1");
+        $identity->execute([$id]);
+        if ($current['form_action_type'] === 'default' || $identity->fetchColumn() || preg_match($reserved, $oldName) || preg_match($reserved, $newName) || (!empty($current['short_code']) && $current['short_code'] !== '[form='.$oldName.']')) {
+            throw new DomainException('Integrated system forms are protected from renaming.');
+        }
+        $collision = $pdo->prepare("SELECT form_id FROM forms WHERE form_id <> ? AND (form_name = ? OR short_code = ?) LIMIT 1");
+        $collision->execute([$id, $newName, '[form='.$newName.']']);
+        $alias = $pdo->prepare("SELECT database_id FROM users_meta WHERE `database` = 'forms' AND `key` = 'form_previous_system_name' AND value = ? AND database_id <> ? LIMIT 1");
+        $alias->execute([$newName, $id]);
+        if ($collision->fetchColumn() || $alias->fetchColumn()) throw new DomainException('That form system name is already in use.');
+        $pdo->prepare('UPDATE form_fields SET form_name = ? WHERE form_name = ?')->execute([$newName, $oldName]);
+        $pdo->prepare('UPDATE forms SET form_name = ?, short_code = ? WHERE form_id = ?')->execute([$newName, '[form='.$newName.']', $id]);
+        $pdo->prepare("INSERT INTO users_meta (`database`, database_id, `key`, `value`, date_added) VALUES ('forms', ?, 'form_previous_system_name', ?, ?)")->execute([$id, $oldName, date('YmdHis')]);
+    }
+
     $q = $pdo->prepare("
         UPDATE forms
         SET form_title = ?,
@@ -153,7 +179,7 @@ try {
         $pdo->rollBack();
     }
 
-    flash('danger', 'Unable to save settings.');
+    flash('danger', $e instanceof DomainException ? $e->getMessage() : 'Unable to save settings.');
 }
 
 redirect('/admin/toolbox/form-manager/settings.php?id=' . $id);

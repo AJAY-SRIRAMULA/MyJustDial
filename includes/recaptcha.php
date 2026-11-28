@@ -7,6 +7,15 @@ function getGoogleRecaptchaCredentials(PDO $pdo): array
         'secret_key' => '',
     ];
 
+    $localPath = __DIR__ . '/../config/config.local.php';
+    $local = is_file($localPath) ? require $localPath : [];
+    $local = is_array($local) ? ($local['recaptcha'] ?? []) : [];
+    $site = trim((string)(getenv('RECAPTCHA_SITE_KEY') ?: ($local['site_key'] ?? '')));
+    $secret = trim((string)(getenv('RECAPTCHA_SECRET_KEY') ?: ($local['secret_key'] ?? '')));
+    if ($site !== '' && $secret !== '') {
+        return ['site_key' => $site, 'secret_key' => $secret];
+    }
+
     if (!tableExists($pdo, 'website_settings')) {
         return $credentials;
     }
@@ -116,8 +125,14 @@ function renderConfiguredCaptcha(PDO $pdo): string
     if ($keys['site_key'] === '' || $keys['secret_key'] === '') {
         return '<p role="alert">CAPTCHA is not configured. Please contact the site administrator.</p>';
     }
-    return '<div class="g-recaptcha" data-sitekey="' . e($keys['site_key']) . '"></div>'
-        . '<script src="https://www.google.com/recaptcha/api.js" async defer></script>';
+    static $scriptAdded = false;
+    $html = '<div class="g-recaptcha" data-sitekey="' . e($keys['site_key']) . '"></div>';
+    if (!$scriptAdded) {
+        $scriptAdded = true;
+        $html .= '<script>window.myJustDialCaptchaReady=function(){function render(){document.querySelectorAll(".g-recaptcha[data-sitekey]").forEach(function(el){if(el.dataset.captchaRendered)return;grecaptcha.render(el,{sitekey:el.dataset.sitekey});el.dataset.captchaRendered="1";});}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",render,{once:true});}else{render();}};</script>'
+            . '<script src="https://www.google.com/recaptcha/api.js?onload=myJustDialCaptchaReady&amp;render=explicit" async defer></script>';
+    }
+    return $html;
 }
 
 function configuredCaptchaError(PDO $pdo, array $fields): string

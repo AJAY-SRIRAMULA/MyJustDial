@@ -6,6 +6,7 @@ require __DIR__ . '/../includes/public_website.php';
 $settings = getPublicWebsiteSettings($pdo);
 $baseUrl = $config['base_url'];
 require_once __DIR__ . '/../includes/directory_search.php';
+require_once __DIR__ . '/../includes/membership_runtime.php';
 $members = [];
 
 if (tableExists($pdo, 'users_data')) {
@@ -14,7 +15,7 @@ if (tableExists($pdo, 'users_data')) {
                 (SELECT p.file FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo,
                 (SELECT p.original FROM users_photo p WHERE p.user_id = u.user_id AND p.type = 'photo' ORDER BY p.photo_id DESC LIMIT 1) AS profile_photo_original
          FROM users_data u
-         WHERE active = 2
+         WHERE active = 2 AND " . membershipVisibilitySql() . "
          ORDER BY featured DESC, user_id DESC
          LIMIT 3"
     );
